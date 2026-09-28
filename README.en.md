@@ -21,6 +21,7 @@
   <a href="#seamless-desktop-handoff-pc--phone">Desktop Handoff</a> •
   <a href="#additional-mobile-refinements">All Refinements</a> •
   <a href="#quickstart">Quickstart</a> •
+  <a href="#remote-access-outside-home-network">Remote Access</a> •
   <a href="#security">Security</a>
 </p>
 
@@ -126,6 +127,29 @@ zcode --web --host 0.0.0.0 --port 3040
 ```
 
 All specified folders will be listed as separate project items in the mobile sidebar drawer, allowing you to switch between different codebases without restarting the server.
+
+---
+
+## Remote Access Outside Home Network
+
+If you need to access ZCode Touch outside your home Wi-Fi (over mobile LTE/5G or while traveling), use the built-in **Cloudflare Tunnel** support:
+
+```bash
+zcode --web --tunnel
+```
+
+The server automatically generates a secure access token, starts `cloudflared`, and outputs the public URL:
+```text
+Tunnel:  https://xxxx.trycloudflare.com/?token=YOUR_TOKEN
+```
+
+### Advantages of Cloudflare Tunnel:
+* **Keeps your mobile VPN slot free:** On iOS and Android, you can keep your primary VPN connected — the tunnel routes over standard HTTPS.
+* **No public IP or port forwarding required:** Works behind CGNAT and firewalls via outbound edge connections.
+* **Native Web Push enabled:** Secure HTTPS automatically enables the built-in PWA Web Push toggle under "Settings → Notifications" (in addition to the ntfy bridge for plain HTTP LAN).
+* **Custom domain support (optional):** If you run a permanent named tunnel on Cloudflare Zero Trust, pass your token via `--tunnel-token <TOKEN>` or the `CLOUDFLARE_TUNNEL_TOKEN` environment variable.
+
+> Requires [cloudflared](https://developers.cloudflare.com/cloudflare-one/connections/connect-apps/install-and-setup/installation/) installed on your host PC (`winget install Cloudflare.cloudflared` on Windows or `brew install cloudflared` on macOS).
 
 ---
 

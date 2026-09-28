@@ -7,7 +7,13 @@ import { networkInterfaces } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const currentDir = dirname(fileURLToPath(import.meta.url));
+let root = resolve(currentDir, "..");
+try {
+  await access(join(root, "package.json"));
+} catch {
+  root = resolve(currentDir, "../..");
+}
 const { version } = JSON.parse(await readFile(join(root, "package.json"), "utf8"));
 const serverEntry = join(root, "server", "entry-http.js");
 const webRoot = join(root, "web");
@@ -15,7 +21,7 @@ const agentEntry = join(root, "agent", "zcode.cjs");
 
 function usage() {
   return `Usage:
-  zcode --web [--host <host>] [--port <port>] [--workspace <path>] [--open|--no-open] [--token <token>|--no-token]
+  zcode --web [--host <host>] [--port <port>] [--workspace <path>] [--open|--no-open] [--token <token>|--no-token] [--tunnel]
   zcode --version
 `;
 }
@@ -40,6 +46,8 @@ function parseArgs(argv) {
     token: undefined,
     tokenEnabled: undefined,
     workspace: process.env.ZCODE_SERVER_WORKSPACE || process.cwd(),
+    tunnel: false,
+    tunnelToken: process.env.CLOUDFLARE_TUNNEL_TOKEN || undefined,
   };
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -92,6 +100,22 @@ function parseArgs(argv) {
     }
     if (arg === "--no-token") {
       options.tokenEnabled = false;
+      continue;
+    }
+    if (arg === "--tunnel") {
+      options.tunnel = true;
+      continue;
+    }
+    if (arg.startsWith("--tunnel=")) {
+      options.tunnel = true;
+      options.tunnelToken = arg.slice(9);
+      continue;
+    }
+    if (arg === "--tunnel-token") {
+      const parsed = readArgValue(argv, arg, index);
+      options.tunnel = true;
+      options.tunnelToken = parsed.value;
+      index = parsed.nextIndex;
       continue;
     }
     throw new Error(`Unknown option "${arg}".\n${usage()}`);
@@ -161,6 +185,55 @@ function openBrowser(url) {
   child.unref();
 }
 
+function startCloudflareTunnel(port, token, tunnelToken) {
+  const args = tunnelToken
+    ? ["tunnel", "run", "--token", tunnelToken]
+    : ["tunnel", "--url", `http://127.0.0.1:${port}`];
+
+  let tunnelProcess = null;
+  try {
+    tunnelProcess = spawn("cloudflared", args, {
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+  } catch (error) {
+    console.log(`[tunnel] Failed to spawn cloudflared: ${error.message}`);
+    return null;
+  }
+
+  tunnelProcess.on("error", (error) => {
+    if (error.code === "ENOENT") {
+      console.log("");
+      console.log("[tunnel] cloudflared is not installed or not in PATH.");
+      console.log("         Windows: winget install Cloudflare.cloudflared");
+      console.log("         macOS:   brew install cloudflared");
+      console.log("         Linux:   https://developers.cloudflare.com/cloudflare-one/connections/connect-apps/install-and-setup/installation/");
+      console.log("");
+    } else {
+      console.log(`[tunnel] cloudflared error: ${error.message}`);
+    }
+  });
+
+  let tunnelReported = false;
+  const inspectOutput = (chunk) => {
+    if (tunnelReported) return;
+    const text = chunk.toString();
+    const match = text.match(/https:\/\/[a-zA-Z0-9-]+\.trycloudflare\.com/);
+    if (match) {
+      tunnelReported = true;
+      const base = match[0];
+      const tunnelUrl = token ? `${base}/?token=${encodeURIComponent(token)}` : `${base}/`;
+      console.log(`Tunnel:  ${tunnelUrl}`);
+      console.log("         (Access anywhere outside home network; native Web Push enabled)");
+      console.log("");
+    }
+  };
+
+  tunnelProcess.stdout.on("data", inspectOutput);
+  tunnelProcess.stderr.on("data", inspectOutput);
+
+  return tunnelProcess;
+}
+
 async function assertRuntimeFiles() {
   for (const file of [serverEntry, agentEntry, webRoot]) {
     await access(file).catch((cause) => {
@@ -172,7 +245,7 @@ async function assertRuntimeFiles() {
 async function serve(options) {
   await assertRuntimeFiles();
   const port = options.port && options.port > 0 ? options.port : await pickPort(options.host);
-  const protect = options.tokenEnabled ?? shouldProtectHost(options.host);
+  const protect = options.tunnel || (options.tokenEnabled ?? shouldProtectHost(options.host));
   const token = protect ? (options.token ?? createToken()) : "";
   const open = options.open ?? isLocalHost(options.host);
   const localUrl = formatUrl(options.host, port, token);
@@ -219,6 +292,12 @@ async function serve(options) {
       console.log(`Network: ${url}`);
     }
   }
+
+  let tunnelChild = null;
+  if (options.tunnel) {
+    tunnelChild = startCloudflareTunnel(port, token, options.tunnelToken);
+  }
+
   console.log("Press Ctrl+C to stop.");
   console.log("");
 
@@ -231,6 +310,13 @@ async function serve(options) {
       return;
     }
     shuttingDown = true;
+    if (tunnelChild) {
+      try {
+        tunnelChild.kill("SIGTERM");
+      } catch {
+        // ignore
+      }
+    }
     child.kill("SIGTERM");
     setTimeout(() => process.exit(0), 1500).unref();
   };
