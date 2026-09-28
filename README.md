@@ -96,6 +96,8 @@ The desktop `ZCode.exe` application and the local web server share **the exact s
 
 ### One-Line Install (Recommended)
 
+> Requires **Node.js 22+** and **Git Bash** on Windows (installs with [Git for Windows](https://git-scm.com/downloads/win); use its Git Bash terminal) — the pipe-to-shell script needs `sh`. On macOS/Linux `sh` is built in.
+
 ```bash
 curl -fsSL https://github.com/v9n9yphb67-ui/ZCode/releases/download/v3.14.0-web/install.sh | sh
 ```

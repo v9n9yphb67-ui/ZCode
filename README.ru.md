@@ -97,6 +97,8 @@
 
 ### Установка готового пакета в одну команду
 
+> Нужны **Node.js 22+** и **Git Bash** на Windows (ставится вместе с [Git for Windows](https://git-scm.com/downloads/win); выполнять в его терминале) — скрипту нужен `sh`. На macOS/Linux `sh` встроен.
+
 ```bash
 curl -fsSL https://github.com/v9n9yphb67-ui/ZCode/releases/download/v3.14.0-web/install.sh | sh
 ```

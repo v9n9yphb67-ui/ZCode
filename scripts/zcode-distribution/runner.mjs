@@ -78,9 +78,10 @@ function parseArgs(argv) {
     }
     if (arg === "--workspace" || arg.startsWith("--workspace=")) {
       const parsed = readArgValue(argv, arg, index);
-      options.workspace = parsed.value.includes(";")
-        ? parsed.value.split(";").map((p) => resolve(p.trim())).join(";")
-        : resolve(parsed.value);
+      const rawWorkspace = parsed.value;
+      options.workspace = rawWorkspace.includes(";")
+        ? rawWorkspace.split(";").map((p) => resolve(p.trim())).filter((p) => p.length > 0).join(";")
+        : resolve(rawWorkspace.trim());
       index = parsed.nextIndex;
       continue;
     }
@@ -269,8 +270,18 @@ async function serve(options) {
   const localUrl = formatUrl(options.host, port, token);
 
   const primaryWorkspace = options.workspace.split(";")[0] || process.cwd();
+  // spawn с cwd в POSIX-форме MSYS-пути (/c/...) падает ENOENT: Node ищет
+  // "C:\Program Files\nodejs\node.exe" относительно несуществующего cwd и сообщает
+  // именно об exe. Проверяем cwd заранее и откатываемся на process.cwd().
+  let serverCwd = process.cwd();
+  try {
+    await access(primaryWorkspace);
+    serverCwd = primaryWorkspace;
+  } catch {
+    console.log(`[web] workspace "${primaryWorkspace}" недоступен, использую ${serverCwd}`);
+  }
   const child = spawn(process.execPath, [serverEntry], {
-    cwd: primaryWorkspace,
+    cwd: serverCwd,
     env: {
       ...process.env,
       PORT: String(port),
