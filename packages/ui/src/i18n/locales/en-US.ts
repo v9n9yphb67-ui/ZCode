@@ -1891,6 +1891,13 @@ const enUS: Record<string, string> = {
   "settings.notificationSound": "Notification sound",
   "settings.notificationSoundDescription":
     "When notifications are enabled, you can mute the task notification sound separately.",
+  "settings.webPush": "Push to this device",
+  "settings.webPushDescription":
+    "Send system notifications to this phone/device when a task finishes, even if ZCode is closed.",
+  "settings.webPushUnavailable":
+    "Unavailable: push needs a secure (HTTPS) connection. Open ZCode over an https address.",
+  "settings.webPushError":
+    "Couldn't turn on. Check the notification permission in your browser/device settings.",
   "notification.taskWithTitle": "Task: {title}",
   "notification.taskWaiting": "Task waiting for your confirmation",
   "notification.completed": "Task completed",
@@ -1959,8 +1966,10 @@ const enUS: Record<string, string> = {
   "settings.locale.system": "System default",
   "settings.locale.zh-CN": "中文简体",
   "settings.locale.en-US": "English",
+  "settings.locale.ru-RU": "Русский",
   "sidebar.settings.systemDefault": "System default",
   "sidebar.settings.locale.en-US": "English",
+  "sidebar.settings.locale.ru-RU": "Русский",
   "sidebar.settings.locale.zh-CN": "中文简体",
   "sidebar.settings.interfaceZoom": "Interface zoom",
   "sidebar.settings.theme.light": "Light theme",

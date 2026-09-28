@@ -55,6 +55,7 @@ import {
   PromptMentionNode,
 } from "./mentions/nodes/PromptMentionNode.js";
 import { logger } from "./logger.js";
+import { isCoarseTouchDevice } from "./lib/pickerFocus.js";
 import { recordInputLag } from "./lib/uiPerfArmsTelemetry.js";
 import { navigatePromptHistory } from "./lib/promptHistory.js";
 import type { MentionItemData } from "@/mentions/mentionTypes.js";
@@ -821,6 +822,7 @@ function TextContentPlugin({
   // 是否已反映组合态存在时序不确定性,读不到 true 会把中文/日文长文本组合的高耗时误报成打字卡顿。
   // 改由 compositionstart/compositionend 事件自行维护,稳健可控。
   const composingRef = useRef(false);
+  const lastReportedTextRef = useRef<string | null>(null);
 
   useEffect(() => {
     const handleCompositionStart = () => {
@@ -850,7 +852,7 @@ function TextContentPlugin({
     }
 
     return editor.registerUpdateListener(
-      ({ dirtyElements, dirtyLeaves, editorState, prevEditorState, tags }) => {
+      ({ dirtyElements, dirtyLeaves, editorState, tags }) => {
         if (dirtyElements.size === 0 && dirtyLeaves.size === 0) {
           return;
         }
@@ -859,10 +861,11 @@ function TextContentPlugin({
         const startedAt = performance.now();
 
         const nextText = getEditorMarkdown(editorState);
-        const previousText = getEditorMarkdown(prevEditorState);
-        if (nextText === previousText) {
+        // 使用 lastReportedTextRef 替代重复序列化 prevEditorState，省去一次全量 Markdown AST 遍历。
+        if (nextText === lastReportedTextRef.current) {
           return;
         }
+        lastReportedTextRef.current = nextText;
 
         onChange(nextText);
 
@@ -1144,6 +1147,12 @@ function LeadingChineseSlashAliasPlugin({ disabled }: { disabled?: boolean }) {
     }
 
     const handleBeforeInput = (event: InputEvent) => {
+      // 快速短路：非中文顿号时不执行昂贵的 Lexical getEditorState.read 与全树 getAllTextNodes 遍历，
+      // 避免在 iOS WebKit 原生键盘 beforeinput 管道中产生主线程阻塞导致打字/删词卡顿。
+      if (event.data !== CHINESE_SLASH_ALIAS) {
+        return;
+      }
+
       let shouldNormalize = false;
       editor.getEditorState().read(() => {
         shouldNormalize = shouldNormalizeLeadingChineseSlashAliasInput({
@@ -1427,7 +1436,10 @@ export function LexicalChatInput({
     (text: string) => {
       const submitResult = onSubmit(text);
       requestAnimationFrame(() => {
-        editorApiRef?.current?.focus();
+        // 手机触控端发送后不强行夺回焦点，避免遮挡回复流；桌面端保留焦点以支持连续键盘输入。
+        if (!isCoarseTouchDevice()) {
+          editorApiRef?.current?.focus();
+        }
       });
       return submitResult;
     },
@@ -1457,6 +1469,10 @@ export function LexicalChatInput({
       // 在 token 后继续输入文字时会按不同 line box 计算基线；这里显式收口正文行高。
       className="min-h-10 max-h-40 overflow-y-auto text-ui-base leading-5 text-foreground outline-none"
       data-testid={inputTestId}
+      spellCheck={true}
+      autoCorrect="on"
+      autoCapitalize="sentences"
+      autoComplete="off"
       onFocus={onFocus}
       {...contentEditableProps}
     />

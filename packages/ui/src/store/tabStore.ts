@@ -141,6 +141,11 @@ export interface TabStoreState {
 
 /** 从路径提取文件夹名作为标签显示名 */
 function labelFromPath(path: string): string {
+  // conversation-workspace (~/.zcode/workspace/default) на вебе показывается обычным рядом
+  // (см. WorkspaceSidebar), и basename "default" пользователю непонятен. Даём осмысленное имя.
+  if (/[\\/]\.zcode[\\/]workspace[\\/]default[\\/]?$/i.test(path)) {
+    return "Задачи";
+  }
   // 兼容 Windows 反斜杠和 Unix 正斜杠
   const segments = path.replace(/\\/g, "/").split("/").filter(Boolean);
   return segments[segments.length - 1] ?? path;

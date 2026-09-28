@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { useServices } from "@/hooks/useServices.js";
+import { useWorkspaceServices } from "@/hooks/useWorkspaceServices.js";
 import { setMcpStoreDirectoryService, useMcpStore } from "@/store/mcpStore.js";
 
 export function useEnsureWorkspaceMcpLoaded(
@@ -7,7 +7,12 @@ export function useEnsureWorkspaceMcpLoaded(
   workspaceIdentity: string | undefined,
   rpcReady: boolean,
 ) {
-  const services = useServices();
+  // Раньше брали mcpSyncService из useServices() (глобальный ServiceProvider). На вебе
+  // он не даёт рабочий mcpSyncService → loadMcpFromUserDirectory RPC не вызывался ни разу
+  // (в серверном логе 0 вызовов), список MCP оставался пустым и агент не видел серверы.
+  // Берём workspace-scoped services — тот же аксессор, что использует McpSettingsSection
+  // (его status-RPC работает на вебе).
+  const services = useWorkspaceServices(workspaceAbsPath, undefined, workspaceIdentity);
 
   useEffect(() => {
     if (!rpcReady) {

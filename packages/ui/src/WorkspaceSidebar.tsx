@@ -370,10 +370,28 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
   const collapseAllWorkspaceTabs = useTabStore((state) => state.collapseAllWorkspaceTabs);
 
   const workspaceTabs = useMemo(() => tabs.filter(isWorkspaceTab), [tabs]);
-  const { conversationWorkspaceTabs, projectWorkspaceTabs } = useMemo(
-    () => partitionWorkspaceTabsByPurpose(workspaceTabs),
-    [workspaceTabs],
-  );
+  const { conversationWorkspaceTabs, projectWorkspaceTabs } = useMemo(() => {
+    const base = partitionWorkspaceTabsByPurpose(workspaceTabs);
+    // На вебе секция «Задачи» (conversations) не умеет показывать задачи: её список берётся
+    // из window-controller, которого на веб-сервере НЕТ (useGlobalTaskList → пусто). Поэтому
+    // conversation-workspace (~/.zcode/workspace/default) показываем как обычный workspace-ряд
+    // в «Проектах» — его чаты рендерятся рабочим путём (useWorkspaceTaskLists/sessions-index),
+    // ровно как у game-creation-engine. Иначе созданные из «+» чаты не видны нигде.
+    const isConversationPath = (p: string) =>
+      /[\\/]\.zcode[\\/]workspace[\\/]default[\\/]?$/i.test(p);
+    const movedToProjects = base.conversationWorkspaceTabs.filter((tab) =>
+      isConversationPath(tab.workspacePath),
+    );
+    if (movedToProjects.length === 0) {
+      return base;
+    }
+    return {
+      conversationWorkspaceTabs: base.conversationWorkspaceTabs.filter(
+        (tab) => !isConversationPath(tab.workspacePath),
+      ),
+      projectWorkspaceTabs: [...base.projectWorkspaceTabs, ...movedToProjects],
+    };
+  }, [workspaceTabs]);
   const workspacePaths = useMemo(
     () => projectWorkspaceTabs.map((tab) => tab.workspacePath),
     [projectWorkspaceTabs],
@@ -1577,7 +1595,7 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
                                 </DndContext>
                               )}
                             </WorkspacePurposeSection>
-                          ) : (
+                          ) : conversationWorkspaceTabs.length === 0 ? null : (
                             <WorkspacePurposeSection
                               key={sectionId}
                               sortableId={sectionId}

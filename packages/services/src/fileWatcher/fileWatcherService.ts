@@ -1,4 +1,4 @@
-import { watch, type FSWatcher } from "node:fs";
+import { watch, realpathSync, type FSWatcher } from "node:fs";
 import { resolve } from "node:path";
 import { Emitter, Event, type Event as RpcEvent } from "@zcode/rpc";
 import type { FileWatchEvent } from "@zcode/shared";
@@ -58,10 +58,21 @@ export function createFileWatcherService(options?: {
       const changeEmitter = new Emitter<FileWatchEvent>();
       const recursive = params.recursive ?? false;
 
+      // Разворачиваем короткий путь 8.3 (`C:\Users\USERNAME~1\...`) в полный. Иначе рекурсивный
+      // fs.watch по 8.3-пути роняет процесс нативным assert libuv на Windows
+      // (fs-event.c:72 !_wcsnicmp(filename,dir): ReadDirectoryChangesW отдаёт длинные имена,
+      // не совпадающие с коротким dir). try/catch это НЕ ловит — это abort на уровне C.
+      let watchPath = params.path;
+      try {
+        watchPath = realpathSync.native(params.path);
+      } catch {
+        // путь может не существовать — оставляем исходный
+      }
+
       let fsWatcher: FSWatcher;
       try {
         // 默认非递归监视单个目录；Git 状态这类工作区级信号会显式打开 recursive。
-        fsWatcher = watch(params.path, { recursive }, (_eventType, fileName) => {
+        fsWatcher = watch(watchPath, { recursive }, (_eventType, fileName) => {
           const instance = watchers.get(id);
           if (!instance) return;
 
@@ -109,7 +120,7 @@ export function createFileWatcherService(options?: {
       });
 
       watchers.set(id, {
-        path: params.path,
+        path: watchPath,
         watcher: fsWatcher,
         changeEmitter,
         debounceTimer: null,

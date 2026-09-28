@@ -174,6 +174,11 @@ export function SlashCommandPlugin({
 
   useEffect(() => {
     return editor.registerUpdateListener(({ dirtyElements, dirtyLeaves, editorState, tags }) => {
+      // 手机联想/IME 组合与替换期间不触发 slash 面板重算，避免打字/纠错时抢占主线程。
+      if (editor.isComposing()) {
+        return;
+      }
+
       editorState.read(() => {
         // 历史导航回填含 / 的历史条目时，不应重新打开 slash 面板，
         // 否则面板以 COMMAND_PRIORITY_CRITICAL 注册方向键处理器，吞掉后续历史翻阅按键。

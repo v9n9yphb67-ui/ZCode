@@ -33,6 +33,12 @@ import { useOptionalServices } from "@/hooks/useServices.js";
 import { ProactiveSuggestionsSetting } from "@/settings/ProactiveSuggestionsSetting.js";
 import { normalizeInterfaceMode, type InterfaceMode } from "@/lib/interfaceMode.js";
 import {
+  isWebPushSupported,
+  isWebPushActive,
+  enableWebPush,
+  disableWebPush,
+} from "@/lib/webPush.js";
+import {
   createSettingsPageConfig,
   resolveSettingsSectionForPlatform,
   type SettingsSectionId,
@@ -44,6 +50,68 @@ export { createSettingsPageConfig, resolveSettingsSectionForPlatform };
 
 const TASK_AUTO_ARCHIVE_DAY_OPTIONS = [3, 7, 14, 30] as const;
 const ZCODE_INTERACTION_BEHAVIOR_OPTIONS: readonly ZCodeInteractionBehavior[] = ["queue", "guide"];
+
+/**
+ * Тумблер push-уведомлений на текущее устройство (web/PWA). Состояние device-local
+ * (есть подписка или нет), поэтому компонент держит его сам, а не в глобальном сторе.
+ * На http/desktop `isWebPushSupported()` = false → показываем причину и disabled-свитч.
+ */
+function WebPushToggle() {
+  const { intl } = useZCodeIntl();
+  const [supported] = useState(() => isWebPushSupported());
+  const [active, setActive] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    if (!supported) return;
+    let cancelled = false;
+    void isWebPushActive().then((value) => {
+      if (!cancelled) setActive(value);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [supported]);
+
+  const handleToggle = useCallback(async (next: boolean) => {
+    setBusy(true);
+    setFailed(false);
+    try {
+      if (next) {
+        const result = await enableWebPush();
+        setActive(result.ok);
+        setFailed(!result.ok);
+      } else {
+        await disableWebPush();
+        setActive(false);
+      }
+    } finally {
+      setBusy(false);
+    }
+  }, []);
+
+  const description = !supported
+    ? intl.formatMessage({ id: "settings.webPushUnavailable" })
+    : failed
+      ? intl.formatMessage({ id: "settings.webPushError" })
+      : intl.formatMessage({ id: "settings.webPushDescription" });
+
+  return (
+    <SettingsRow
+      label={intl.formatMessage({ id: "settings.webPush" })}
+      description={description}
+      control={
+        <Switch
+          checked={active}
+          disabled={!supported || busy}
+          onCheckedChange={(next) => void handleToggle(next)}
+        />
+      }
+    />
+  );
+}
+
 
 export function GeneralSectionContent({
   localePreference,
@@ -312,6 +380,12 @@ export function GeneralSectionContent({
                   data-testid={testId(TID_SETTINGS_LOCALE_SELECT_ITEM, "en-US")}
                 >
                   {intl.formatMessage({ id: "settings.locale.en-US" })}
+                </SelectItem>
+                <SelectItem
+                  value="ru-RU"
+                  data-testid={testId(TID_SETTINGS_LOCALE_SELECT_ITEM, "ru-RU")}
+                >
+                  {intl.formatMessage({ id: "settings.locale.ru-RU" })}
                 </SelectItem>
               </SelectContent>
             </Select>
@@ -632,6 +706,7 @@ export function GeneralSectionContent({
             />
           }
         />
+        {!isDesktop ? <WebPushToggle /> : null}
         {isWindowsDesktop ? (
           <SettingsRow
             label={intl.formatMessage({ id: "settings.closeToTrayOnWindows" })}

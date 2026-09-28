@@ -1,6 +1,7 @@
 /* eslint-disable max-lines -- HTTP、WebSocket 与静态资源路由集中注册，保持同一鉴权顺序。 */
 import { randomUUID } from "node:crypto";
 import { readFile, stat } from "node:fs/promises";
+import { realpathSync } from "node:fs";
 import { basename, extname, relative, resolve, sep } from "node:path";
 import { hostname } from "node:os";
 import { Hono, type Context } from "hono";
@@ -37,6 +38,7 @@ import {
 } from "@zcode/shared";
 import { connectRemote, createRemoteBackend, type RemoteConnection } from "./remote/index.js";
 import { createHostCapabilityStore } from "./hostCapability.js";
+import { createWebPushService } from "./webPush.js";
 
 function wrapWebSocket(ws: WebSocket): ISocket {
   const onData = new Emitter<VSBuffer>();
@@ -154,13 +156,33 @@ function resolveServerWorkspaces(options: HttpServerOptions): ServerRemoteWorksp
   if (options.workspaces) {
     return options.workspaces;
   }
-  const workspacePath = readTrimmedEnv("ZCODE_SERVER_WORKSPACE") || process.cwd();
-  return [
-    {
-      path: workspacePath,
-      label: basename(workspacePath) || workspacePath,
-    },
-  ];
+  const raw = readTrimmedEnv("ZCODE_SERVER_WORKSPACE") || process.cwd();
+  // Несколько рабочих пространств: пути через ';' (напр. проект + ~/.zcode/workspace/default).
+  // Так мобильный веб обслуживает И проект, И conversation-workspace одновременно.
+  const paths = Array.from(
+    new Set(
+      raw
+        .split(";")
+        .map((entry) => entry.trim())
+        .filter((entry) => entry.length > 0),
+    ),
+  );
+  const resolved = paths.length > 0 ? paths : [process.cwd()];
+  return resolved.map((workspacePath) => {
+    // Разворачиваем короткий путь 8.3 (`C:\Users\USERNAME~1\...`, которым launcher обходит
+    // не-ASCII в .cmd) в полный. Иначе file-watch по 8.3-пути падает нативным
+    // assert libuv на Windows (fs-event.c: filename≠dir при case/short-name) → краш сервера.
+    let longPath = workspacePath;
+    try {
+      longPath = realpathSync.native(workspacePath);
+    } catch {
+      // путь может не существовать / не Windows — оставляем как есть
+    }
+    return {
+      path: longPath,
+      label: basename(longPath) || longPath,
+    };
+  });
 }
 
 function createServerInfo(options: HttpServerOptions): ServerRemoteInfo {
@@ -197,6 +219,7 @@ const staticMimeTypes: Record<string, string> = {
   ".svg": "image/svg+xml",
   ".txt": "text/plain; charset=utf-8",
   ".wasm": "application/wasm",
+  ".webmanifest": "application/manifest+json; charset=utf-8",
   ".webp": "image/webp",
   ".woff": "font/woff",
   ".woff2": "font/woff2",
@@ -316,6 +339,30 @@ export function createHttpServer(
 
   app.get("/api/server-info", (c) => c.json(createServerInfo(options)));
   app.post("/api/rpc-host-capability", (c) => c.json(hostCapabilities.issue()));
+
+  // Web Push: сервер шлёт уведомление на телефон при терминале фоновой задачи (даже с
+  // закрытым PWA). Требует HTTPS на клиенте. Роуты под тем же lite-token, что и /ws.
+  const webPush = createWebPushService({
+    services,
+    workspaces: resolveServerWorkspaces(options),
+    log,
+  });
+  app.get("/api/push/vapid-public-key", (c) => c.json({ publicKey: webPush.getVapidPublicKey() }));
+  app.post("/api/push/subscribe", async (c) => {
+    const body = (await c.req.json().catch(() => null)) as
+      | { subscription?: unknown; appUrl?: unknown }
+      | null;
+    if (!body) {
+      return c.json({ error: "invalid body" }, 400);
+    }
+    const result = await webPush.addSubscription(body.subscription, body.appUrl);
+    return result.ok ? c.json({ ok: true }) : c.json({ error: result.error ?? "failed" }, 400);
+  });
+  app.post("/api/push/unsubscribe", async (c) => {
+    const body = (await c.req.json().catch(() => null)) as { endpoint?: unknown } | null;
+    await webPush.removeSubscription(body?.endpoint);
+    return c.json({ ok: true });
+  });
 
   // 普通 `/ws` 永远是 terminal-client；浏览器/任意客户端设置旧 mode header
   // 都不能再把自己提升为 trusted host。

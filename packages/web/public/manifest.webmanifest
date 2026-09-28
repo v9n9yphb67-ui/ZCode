@@ -1,0 +1,20 @@
+{
+  "name": "ZCode",
+  "short_name": "ZCode",
+  "description": "ZCode Remote — control your desktop ZCode workspace from your phone.",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#161616",
+  "theme_color": "#161616",
+  "icons": [
+    {
+      "src": "/app-icon.png",
+      "sizes": "1024x1024",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}

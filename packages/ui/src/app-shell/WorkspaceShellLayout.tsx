@@ -6,6 +6,7 @@ import type {
   PointerEvent as ReactPointerEvent,
 } from "react";
 import type { PanelImperativeHandle } from "react-resizable-panels";
+import { XIcon } from "lucide-react";
 
 import { TID_APP_HEADER } from "@zcode/shared";
 // 保活：workspace tab 真正关闭时，按 workspaceKey 回收 side pane terminal 的常驻 PTY/xterm。
@@ -370,6 +371,9 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
     workspaceKey,
     activeSessionId: activeTaskId,
     draftFocusVersion: workspaceShellZCodeState.draftFocusVersion,
+    // web/mobile: восстанавливать последнюю сессию и на cold start (выгрузка PWA из памяти
+    // iOS/Android → повторное открытие = navigate, не reload). На десктопе поведение прежнее.
+    restoreOnFreshLoad: !isDesktop,
     selectSession: (sessionId) => handleSelectTask(workspaceAbsPath, sessionId, workspaceIdentity),
   });
   const workspaceShellRef = useRef<HTMLDivElement | null>(null);
@@ -531,6 +535,20 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
       window.removeEventListener("resize", handleWindowResize);
     };
   }, [workspaceMainView]);
+
+  // Мобайл: сайдбар — выезжающий overlay. При открытии раздела/задачи из него автоматически
+  // прячем сайдбар, чтобы контент занял весь экран (обычный drawer-паттерн). Только узкий экран.
+  // Deps намеренно только activeTaskId/workspaceMainView: реагируем на «открылось что-то в основном
+  // окне», а не на само переключение видимости (иначе открытие сайдбара мгновенно бы его закрывало).
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.matchMedia?.("(max-width: 767px)").matches) {
+      return;
+    }
+    if (isSidebarVisible) {
+      handleToggleSidebar();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTaskId, workspaceMainView]);
 
   useEffect(() => {
     workspaceSidebarPanelWidthPxRef.current = workspaceSidebarPanelWidthPx;
@@ -1412,6 +1430,46 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
       });
     }
   }, [activeTaskId, workspaceKey]);
+  // Мобайл: тап по элементу выехавшего drawer-сайдбара должен закрывать сам drawer.
+  // Эффект по [activeTaskId, workspaceMainView] закрывает только когда цель ОТЛИЧАЕТСЯ от
+  // текущей; при одной длинной сессии повторный тап по уже активной задаче ничего не менял,
+  // и drawer оставался открытым. Здесь закрываем по самому действию — даже без смены цели.
+  const isSidebarVisibleRef = useRef(isSidebarVisible);
+  isSidebarVisibleRef.current = isSidebarVisible;
+  const collapseSidebarOnMobileNav = useCallback(() => {
+    if (
+      typeof window !== "undefined" &&
+      window.matchMedia?.("(max-width: 767px)").matches &&
+      isSidebarVisibleRef.current
+    ) {
+      handleToggleSidebar();
+    }
+  }, [handleToggleSidebar]);
+  const handleSidebarSelectTask = useCallback(
+    (...args: Parameters<typeof handleSelectTaskInChat>) => {
+      collapseSidebarOnMobileNav();
+      handleSelectTaskInChat(...args);
+    },
+    [collapseSidebarOnMobileNav, handleSelectTaskInChat],
+  );
+  const handleSidebarCreateTask = useCallback(
+    (...args: Parameters<typeof handleCreateTaskInChat>) => {
+      collapseSidebarOnMobileNav();
+      handleCreateTaskInChat(...args);
+    },
+    [collapseSidebarOnMobileNav, handleCreateTaskInChat],
+  );
+  const handleSidebarCreateConversationTask = useCallback(() => {
+    collapseSidebarOnMobileNav();
+    (onCreateConversationTask ?? handleCreateTaskInChat)();
+  }, [collapseSidebarOnMobileNav, onCreateConversationTask, handleCreateTaskInChat]);
+  const handleSidebarStartDraftInWorkspace = useCallback(
+    (...args: Parameters<typeof handleCreateProjectDraft>) => {
+      collapseSidebarOnMobileNav();
+      handleCreateProjectDraft(...args);
+    },
+    [collapseSidebarOnMobileNav, handleCreateProjectDraft],
+  );
   const renderSidePanePanel = () => (
     <AnimatedSidePanePanel
       services={services}
@@ -1534,9 +1592,14 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
           id="sidebar"
           className={cn(
             "w-[var(--workspace-sidebar-panel-width)] max-w-[50%] flex-none overflow-hidden duration-200 ease-out transition-[width,opacity] data-[workspace-sidebar-resizing=true]:transition-opacity",
+            // мобайл: сайдбар — выезжающий overlay-drawer поверх контента, а не колонка,
+            // которая сжимает чат. Ширина фиксируется, видимость — через translate-x.
+            "max-md:absolute max-md:inset-y-0 max-md:left-0 max-md:z-50 max-md:h-full max-md:!w-[min(86vw,320px)] max-md:!max-w-[86vw] max-md:!opacity-100 max-md:bg-background max-md:shadow-2xl max-md:transition-transform max-md:duration-200",
             // 拖动侧栏宽度时如果继续过渡 width，会让指针移动和实际宽度之间产生滞后。
             // 拖拽 active 通过 DOM 标记切 transition，避免 pointerdown/up 为了切 class 重渲染整棵 workspace。
-            isSidebarPanelVisible ? "opacity-100" : "pointer-events-none opacity-0",
+            isSidebarPanelVisible
+              ? "opacity-100 max-md:translate-x-0"
+              : "pointer-events-none opacity-0 max-md:translate-x-[-101%]",
           )}
         >
           <aside
@@ -1561,13 +1624,13 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
                     workspacePath={workspaceAbsPath}
                     workspaceRemoteSessionId={workspaceRemoteSessionId}
                     activePreviewPath={activePreviewPath}
-                    onSelectTask={handleSelectTaskInChat}
-                    onStartDraftInWorkspace={handleCreateProjectDraft}
+                    onSelectTask={handleSidebarSelectTask}
+                    onStartDraftInWorkspace={handleSidebarStartDraftInWorkspace}
                     onOpenCodeViewer={handleOpenCodeViewer}
                     onOpenBrowserUrl={handleOpenBrowserUrl}
                     fileTreeOpenRequest={fileTreeOpenRequest}
-                    onCreateTask={handleCreateTaskInChat}
-                    onCreateConversationTask={onCreateConversationTask ?? handleCreateTaskInChat}
+                    onCreateTask={handleSidebarCreateTask}
+                    onCreateConversationTask={handleSidebarCreateConversationTask}
                     onOpenFolderFromWorkspaceMenu={onOpenFolderFromWorkspaceMenu}
                     onOpenRemoteWorkspace={onOpenRemoteWorkspace}
                     theme={theme}
@@ -1606,7 +1669,27 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
               </V4SplitPaneEntryProvider>
             </ScopedErrorBoundary>
           </aside>
+          {/* мобайл: явная кнопка закрытия drawer. На десктопе тоггл живёт в топ-оверлее,
+              но на телефоне выехавший drawer перекрывает его — нужен видимый крестик внутри. */}
+          <button
+            type="button"
+            aria-label={intl.formatMessage({ id: "workspaceSidebar.toggleSidebar" })}
+            onClick={handleToggleSidebar}
+            className="hidden max-md:absolute max-md:right-2 max-md:top-2 max-md:z-[60] max-md:grid max-md:size-9 max-md:place-items-center max-md:rounded-md max-md:bg-surface max-md:text-foreground-subtle max-md:shadow-sm"
+          >
+            <XIcon className="size-4" />
+          </button>
         </div>
+
+        {/* мобайл: затемняющий backdrop под drawer-сайдбаром; тап закрывает сайдбар */}
+        {isSidebarPanelVisible ? (
+          <div
+            aria-hidden="true"
+            data-workspace-sidebar-backdrop="true"
+            onClick={handleToggleSidebar}
+            className="hidden max-md:absolute max-md:inset-0 max-md:z-40 max-md:block max-md:bg-black/50"
+          />
+        ) : null}
 
         {isSidebarVisible ? (
           <div
@@ -1624,7 +1707,7 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
             onPointerMove={handleWorkspaceSidebarResizeMove}
             onPointerUp={(event) => finishWorkspaceSidebarResize(event)}
             className={cn(
-              "group/handle relative z-10 flex h-full w-1 shrink-0 touch-none cursor-ew-resize items-center justify-center bg-transparent outline-none [app-region:no-drag] focus:outline-none focus-visible:ring-0",
+              "group/handle relative z-10 flex h-full w-1 shrink-0 touch-none cursor-ew-resize items-center justify-center bg-transparent outline-none [app-region:no-drag] focus:outline-none focus-visible:ring-0 max-md:hidden",
               "after:pointer-events-none after:absolute after:rounded-full after:bg-foreground-subtlest/50 after:opacity-0 after:transition-opacity after:content-[''] after:inset-y-[var(--workspace-panel-radius)] after:w-0.5",
               "hover:after:opacity-100 data-[separator=hover]:after:opacity-100 data-[separator=active]:after:opacity-100 focus-visible:after:opacity-100 [[data-workspace-sidebar-resizing=true]_&]:after:opacity-100",
               hasDesktopPanelInset && "after:inset-y-[var(--workspace-resize-handle-inset)]",
@@ -1636,7 +1719,7 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
           data-panel=""
           id="content"
           className={cn(
-            "flex min-w-[320px] flex-1 flex-col",
+            "flex min-w-[320px] flex-1 flex-col max-md:min-w-0",
             hasDesktopPanelInset ? "p-1 pl-0 pt-0" : "p-0",
           )}
         >
@@ -1648,7 +1731,9 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
           <ResizablePanelGroup
             layoutId="workspace-body-layout"
             panelIds={WORKSPACE_BODY_PANEL_IDS}
-            className="min-h-0 flex-1"
+            // Телефон (max-md): контекст позиционирования + клип для правого side-pane-drawer,
+            // который наезжает overlay-ем поверх чата (уезжает за правый край в закрытом виде).
+            className="min-h-0 flex-1 max-md:relative max-md:overflow-hidden"
           >
             <ResizablePanel
               id="conversation-column"
@@ -1929,6 +2014,15 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
                 ) : null}
               </ResizablePanelGroup>
             </ResizablePanel>
+            {/* мобайл: затемняющий backdrop под правым side-pane-drawer; тап закрывает пане */}
+            {isSidePaneVisible ? (
+              <div
+                aria-hidden="true"
+                data-workspace-side-pane-backdrop="true"
+                onClick={handleToggleSidePane}
+                className="hidden max-md:absolute max-md:inset-0 max-md:z-30 max-md:block max-md:bg-black/50"
+              />
+            ) : null}
             {/* Browser Guest Host 必须与主视图路由解耦，避免 automations/plugin
                     切换时卸载 Guest；截图请求期间由上层临时展开真实面板承载可合成的 WebContents。 */}
             {sidePanePanel}

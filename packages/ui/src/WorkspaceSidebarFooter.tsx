@@ -122,7 +122,7 @@ export const WorkspaceSidebarFooter = memo(function WorkspaceSidebarFooterCompon
   isDesktop?: boolean;
   className?: string;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl, locale, setLocale } = useZCodeIntl();
   const platform = usePlatform();
   const interfaceMode = useZCodeStore((state) => state.interfaceMode);
   const setInterfaceMode = useZCodeStore((state) => state.setInterfaceMode);
@@ -252,6 +252,11 @@ export const WorkspaceSidebarFooter = memo(function WorkspaceSidebarFooterCompon
                       id: "sidebar.settings.locale.en-US",
                     })}
                   </DropdownMenuRadioItem>
+                  <DropdownMenuRadioItem value="ru-RU">
+                    {intl.formatMessage({
+                      id: "sidebar.settings.locale.ru-RU",
+                    })}
+                  </DropdownMenuRadioItem>
                   <DropdownMenuRadioItem value="zh-CN">
                     {intl.formatMessage({
                       id: "sidebar.settings.locale.zh-CN",
@@ -369,6 +374,24 @@ export const WorkspaceSidebarFooter = memo(function WorkspaceSidebarFooterCompon
           </DropdownMenuContent>
         </DropdownMenu>
         <div className="flex shrink-0 items-center gap-1.5">
+          {/* быстрый переключатель языка рядом с шестерёнкой: циклично En → Ру → 中 */}
+          <ControlHintTooltip title={intl.formatMessage({ id: "locale.switchLanguage" })}>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-lg"
+              aria-label={intl.formatMessage({ id: "locale.switchLanguage" })}
+              onClick={() => {
+                const order: Locale[] = ["en-US", "ru-RU", "zh-CN"];
+                const idx = order.indexOf(locale);
+                setLocale(order[(idx + 1) % order.length] ?? "en-US");
+              }}
+            >
+              <span className="text-ui-base font-semibold">
+                {locale === "zh-CN" ? "中" : locale === "ru-RU" ? "Ру" : "En"}
+              </span>
+            </Button>
+          </ControlHintTooltip>
           <ControlHintTooltip title={settingsButtonLabel}>
             <Button
               type="button"

@@ -123,7 +123,13 @@ export async function initializeMcp(
   this: AgentRuntimeInternal,
   traceContext: TraceContext,
 ): Promise<void> {
-  if (this.mcpToolsRegistered) return;
+  // mcpToolsRegistered — одноразовый флаг первой (стартовой) инициализации.
+  // connecting — это «серверы ещё подключаются», а не «их нет»: стартовый snapshot может
+  // прийти с tools=[] при живых connecting, и тогда флага-без-ретрая было достаточно, чтобы
+  // сессия осталась без MCP-инструментов навсегда. Поэтому: стартовая инициализация ждёт
+  // pending-подключения (ретрай ниже), а поздние вызовы удобного случая (resume/turn после
+  // долгой паузы) добирают инструменты, которые подъехали уже после старта.
+  const isFirstInitialization = !this.mcpToolsRegistered;
 
   const startup = this.startMcpStartup(traceContext);
   const mcpPort = this.mcpPort;
@@ -132,9 +138,74 @@ export async function initializeMcp(
     return;
   }
   const serverCount = Object.keys(this.config.mcp?.servers ?? {}).length;
+  const hasPendingConnections = (snapshot: McpConnectionSnapshot): boolean =>
+    Object.values(snapshot.statuses).some((status) => status?.status === "connecting");
+
+  // Поздний добор: серверы могли подключиться уже после стартового snapshot
+  // (старт поймал connecting→tools 0). status()/listTools() читают текущие records
+  // адаптера — без нового connect: повторно коннектить живое нельзя (replace-семантика
+  // connectConfiguredServers отключила бы чужое), только подобрать готовое.
+  const collectLateArrivals = async (): Promise<number> => {
+    const statuses = await mcpPort.status().catch(() => null);
+    if (!statuses) return 0;
+    const pending = Object.values(statuses).some((status) => status?.status === "connecting");
+    if (pending) return 0;
+    const tools = await mcpPort.listTools().catch(() => []);
+    if (tools.length === 0) return 0;
+    const registered = registerMcpTools(this.registry, mcpPort, tools, {
+      allowedTools: this.config.toolAllowlist,
+      disallowedTools: this.config.toolDisallowlist,
+      officialCuaServerNames: computeOfficialCuaServerNames(
+        this.config.mcp?.servers ?? {},
+        new Set(this.config.mcp?.trustedOfficialCuaServerNames ?? []),
+      ),
+    });
+    if (registered.length > 0) {
+      this.invalidateToolCache();
+      this.logger?.info("MCP late tools registered", {
+        ...traceContextToLogContext(traceContext),
+        event: "mcp.tools.registered_late",
+        module: "core.runtime",
+        registeredToolCount: registered.length,
+        serverCount,
+        status: "completed",
+      });
+    }
+    return registered.length;
+  };
+
+  if (!isFirstInitialization) {
+    await collectLateArrivals().catch(() => 0);
+    return;
+  }
 
   try {
-    const snapshot = await startup;
+    let snapshot = await startup;
+    if (snapshot.tools.length === 0 && hasPendingConnections(snapshot)) {
+      const pendingRetry = mcpPort
+        .connectConfiguredServers(this.config.mcp?.servers ?? {}, {
+          // OAuth-ожидание здесь нельзя наследовать от сессии: браузерная авторизация
+          // показывается из настроек (5 мин бюджет), а модели нужен только готовый итог.
+          oauthAuthorizationTimeoutMs: MCP_SESSION_OAUTH_AUTHORIZATION_TIMEOUT_MS,
+          trace: traceContext,
+          workingDirectory: this.workingDirectory,
+          workspaceIdentity: this.config.workspaceIdentity?.toString(),
+        })
+        .catch((error) => {
+          this.logger?.warn("MCP pending connections rewait failed", {
+            ...traceContextToLogContext(traceContext),
+            error: error instanceof Error ? error.message : String(error),
+            event: "mcp.pending_rewait.failed",
+            module: "core.runtime",
+            status: "failed",
+          });
+          return null;
+        });
+      const retried = pendingRetry ? await this.trackResidencyBlockingWork(pendingRetry) : null;
+      if (retried && retried.tools.length > 0) {
+        snapshot = retried;
+      }
+    }
     const registered = registerMcpTools(this.registry, mcpPort, snapshot.tools, {
       allowedTools: this.config.toolAllowlist,
       disallowedTools: this.config.toolDisallowlist,

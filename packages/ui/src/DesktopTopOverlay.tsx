@@ -131,6 +131,20 @@ export function DesktopTopOverlay({
             "pointer-events-auto flex items-center gap-1 shrink-0 [app-region:no-drag]",
           )}
         >
+          {/* веб/мобайл (не десктоп): на узком экране сайдбар — выезжающий drawer,
+              поэтому нужна видимая кнопка его открыть/закрыть (на десктопе прячем через md:hidden). */}
+          {!isMacDesktop && !usesCustomCaptionArea && (
+            <DesktopTopOverlayActionButton
+              title={toggleSidebarTitle}
+              shortcut={toggleSidebarShortcutLabel}
+              ariaLabel={toggleSidebarTitle}
+              buttonClassName="md:hidden"
+              onClick={onToggleSidebar}
+            >
+              <SidebarToggleIcon className="size-4" />
+            </DesktopTopOverlayActionButton>
+          )}
+
           {usesCustomCaptionArea && (
             <DesktopTopOverlayActionButton
               title={toggleSidebarTitle}

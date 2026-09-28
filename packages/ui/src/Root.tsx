@@ -34,7 +34,7 @@ import {
   shouldOpenFallbackWorkspaceAfterCreate,
 } from "@/lib/rootStartupGate.js";
 import { StoreProvider, useZCodeStore } from "@/store/StoreProvider.js";
-import { setMcpStorePlatform } from "@/store/mcpStore.js";
+import { setMcpStorePlatform, setMcpStoreIsDesktopPlatform } from "@/store/mcpStore.js";
 import { useZCodeSessionStore } from "@/store/zcodeSessionStore.js";
 import { TabStoreProvider, useTabStore, useTabStoreApi } from "@/store/TabStoreProvider.js";
 import { isSettingsTab, isWorkspaceTab, type WorkspaceTabState } from "@/store/tabStore.js";
@@ -146,6 +146,7 @@ function RootInner({
   initialWorkspaceAbsPath,
   unavailableWorkspacePath,
   initialWorkspaceIdentity,
+  initialWorkspaces,
   initialWorkspacePurpose,
   initialTaskId,
   isDesktop,
@@ -161,6 +162,10 @@ function RootInner({
 }: RootProps) {
   useEffect(() => {
     setMcpStorePlatform(platform);
+    // Web 端的 platform 是 createWebPlatform stub（loadMcpFromUserDirectory 返回 []），
+    // 桌面端才是能读盘的真实 platform。mcpStore 用该标记决定本地 workspace 走 platform
+    // 还是走 mcpSyncService RPC，避免 Web 端本地 workspace 的 MCP 列表恒为空。
+    setMcpStoreIsDesktopPlatform(Boolean(isDesktop));
     // 对话 UI perf 只属于 desktop-continuous；Web/mobile 即使能看到权威状态也不装 reporter。
     setUiPerfArmsReporter(isDesktop ? platform : null);
     setSessionOpenArmsReporter(isDesktop ? platform : null);
@@ -364,6 +369,7 @@ function RootInner({
     countAllUnreadTasks(state.workspaces),
   );
   const addTab = useTabStore((state) => state.addTab);
+  const ensureWorkspaceTab = useTabStore((state) => state.ensureWorkspaceTab);
   const activateTabByPath = useTabStore((state) => state.activateTabByPath);
   const tabStoreApi = useTabStoreApi();
   const refreshProviderState = useRootProviderStateRefresh(services);
@@ -501,6 +507,7 @@ function RootInner({
     },
     userId: user?.id,
     onOpenRemoteConnection: allowRemoteWorkspace ? handleOpenRemoteConnection : undefined,
+    isDesktop,
   });
   const handleRemoteWorkspaceActivated = useCallback(
     ({
@@ -625,12 +632,14 @@ function RootInner({
     initialWorkspaceAbsPath,
     initialWorkspaceIdentity,
     initialWorkspacePurpose,
+    initialWorkspaces,
     initialTaskId,
     // 系统右键/Service 冷启动传入 initialWorkspacePath 时，必须先恢复历史 tabs，
     // 再把目标 workspace 合并并激活。否则先 addTab 会被 restoreTabs 整体替换掉；
     // 直接禁用 restoreSession 又会让其他 workspace 全部消失。
     canBootstrapInitialWorkspace: canRestoreWorkspaceSession && hasCompletedInitialRestore,
     addTab,
+    ensureWorkspaceTab,
     setIsBootstrappingInitialWorkspace,
     platform,
     activateTabByPath,
@@ -1023,7 +1032,16 @@ function RootInner({
             handleCancelRemoteProject={handleCancelRemoteProject}
             handleReconnectRemoteWorkspace={handleReconnectRemoteWorkspace}
             handleCreateTask={handleCreateTask}
-            handleCreateConversationTask={handleCreateConversationTask}
+            handleCreateConversationTask={
+              // Раздел «Задачи» (conversations «+») создаёт задачу в conversation-workspace
+              // (~/.zcode/workspace/default). Раньше на вебе она была невидима (список висел
+              // на window-controller, которого нет на веб-сервере), поэтому «+» временно
+              // роутили в АКТИВНЫЙ проект — но тогда чат попадал в game-creation-engine, а не в
+              // «задачи». Теперь conversation-workspace добавлен как отдельный таб и рендерится
+              // через sessions-index, поэтому обычный handleCreateConversationTask снова корректен
+              // и на вебе: новый чат появляется в «Задачах», а НЕ в проекте.
+              handleCreateConversationTask
+            }
             handleResolveConversationWorkspace={handleResolveConversationWorkspace}
             handleOpenWorkspace={handleOpenWorkspace}
             handleOpenFolderFromWorkspaceMenu={handleOpenFolderFromWorkspaceMenu}

@@ -1,4 +1,5 @@
 import { applyComposerPermissionGrant } from "@/v4/composer/composerPermissionGrant.js";
+import { persistGlobalRecentModelSelection } from "@/lib/composerRecent.js";
 /* eslint-disable max-lines -- Composer 草稿 owner 同时收口选择、正文与提交生命周期，保持单一状态边界。 */
 // Composer 的模式/模型选择与正文使用同一 scope 草稿；Session 只提供一次初始化种子。
 // 菜单点击立即保存 Renderer 意图，Prewarm 与 Submission 只消费它，不反向覆盖。
@@ -425,6 +426,7 @@ export function useDraftConfigControl(params: {
         workspaceIdentity: workspaceIdentity ?? null,
       });
       updateDraftConfig((current) => applyDraftModelSelection(current, modelSelection));
+      persistGlobalRecentModelSelection(modelSelection);
     },
     [modelSelectionView, updateDraftConfig, workspaceIdentity, workspacePath],
   );
@@ -436,20 +438,22 @@ export function useDraftConfigControl(params: {
         const modelId = current.modelSelection?.modelId ?? current.model?.trim();
         if (!providerId || !modelId) return { ...current, thought };
         const reasoningLevel = thought.trim();
+        const nextModelSelection = {
+          providerId,
+          modelId,
+          ...(reasoningLevel
+            ? {
+                options: {
+                  ...current.modelSelection?.options,
+                  reasoningLevel,
+                },
+              }
+            : {}),
+        };
+        persistGlobalRecentModelSelection(nextModelSelection);
         return {
           ...current,
-          modelSelection: {
-            providerId,
-            modelId,
-            ...(reasoningLevel
-              ? {
-                  options: {
-                    ...current.modelSelection?.options,
-                    reasoningLevel,
-                  },
-                }
-              : {}),
-          },
+          modelSelection: nextModelSelection,
           thought,
         };
       });

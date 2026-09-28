@@ -45,6 +45,10 @@ import { mergeMcpServerStatusSnapshots } from "@/store/mcpStoreStatusList.js";
 
 let mcpPlatformService: McpPlatformService | null = null;
 let mcpDirectoryService: McpDirectoryService | null = null;
+// 默认按桌面端处理：本地 workspace 首帧若在 Root 注入 platform 之前就触发一次加载，
+// 也要保持桌面端“走 platform + 迁移”的历史行为。Web 端连接是异步的（WS 建连后 rpcReady
+// 才置 true），真正的加载发生在 Root effect 把该标记改成 false 之后，因此 Web 不受默认值影响。
+let mcpIsDesktopPlatform = true;
 
 export function setMcpStorePlatform(platform: McpPlatformService | null): void {
   mcpPlatformService = platform;
@@ -52,6 +56,10 @@ export function setMcpStorePlatform(platform: McpPlatformService | null): void {
 
 export function setMcpStoreDirectoryService(service: McpDirectoryService | null): void {
   mcpDirectoryService = service;
+}
+
+export function setMcpStoreIsDesktopPlatform(isDesktop: boolean): void {
+  mcpIsDesktopPlatform = isDesktop;
 }
 
 interface UpdateServerStatusOptions {
@@ -152,9 +160,15 @@ export const useMcpStore = create<McpStoreState>((set, get) => {
   ): McpDirectoryService | null {
     const effectiveWorkspaceIdentity = workspaceIdentity ?? get().currentWorkspaceIdentity;
     if (!effectiveWorkspaceIdentity?.trim()) {
-      // 本地 workspace 仍要走 desktop platform 路径，才能执行旧 common MCP
+      // 桌面端本地 workspace 仍要走 desktop platform 路径，才能执行旧 common MCP
       // 到用户级 ZCode Agent MCP 的迁移；目录服务只用于远端 workspace 覆盖路由。
-      return null;
+      // 但 Web 端没有真实 platform（createWebPlatform 把 loadMcpFromUserDirectory
+      // stub 成返回 []），本地 workspace 只能用 mcpSyncService RPC 去读
+      // ~/.zcode/cli/config.json，否则设置页和 agent 侧的 MCP 列表永远为空。
+      if (mcpIsDesktopPlatform) {
+        return null;
+      }
+      return directoryService ?? mcpDirectoryService;
     }
     return directoryService ?? mcpDirectoryService;
   }

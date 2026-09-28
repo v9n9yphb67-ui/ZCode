@@ -5,6 +5,8 @@ import { logger } from "@/logger.js";
 
 // 沿用旧 key，读取时兼容只保存 ModelSelection 的历史记录。
 const COMPOSER_RECENT_KEY_PREFIX = "zcode-model-selection-recent-v1";
+// 全局记忆最近使用的模型（跨 workspace 共享偏好，避免新会话回退到不活跃的默认模型）。
+const COMPOSER_RECENT_GLOBAL_KEY = "zcode-model-selection-recent-global-v1";
 
 interface StorageLike {
   getItem(key: string): string | null;
@@ -24,6 +26,38 @@ function resolveComposerRecentKey(workspacePath: string, workspaceIdentity?: str
   return `${COMPOSER_RECENT_KEY_PREFIX}:${workspaceKey}`;
 }
 
+export function readGlobalRecentModelSelection(
+  storage: StorageLike | null = browserStorage(),
+): ModelSelection | null {
+  if (!storage) return null;
+  try {
+    const raw = storage.getItem(COMPOSER_RECENT_GLOBAL_KEY);
+    if (!raw) return null;
+    const record: unknown = JSON.parse(raw);
+    if (!record || typeof record !== "object" || Array.isArray(record)) return null;
+    const selection = modelSelectionSchema.safeParse(
+      "modelSelection" in record ? (record as Record<string, unknown>).modelSelection : record,
+    );
+    return selection.success ? selection.data : null;
+  } catch {
+    return null;
+  }
+}
+
+export function persistGlobalRecentModelSelection(
+  selection: ModelSelection,
+  storage: StorageLike | null = browserStorage(),
+): void {
+  if (!storage) return;
+  const normalized = normalizeSparseModelSelection(selection);
+  if (!normalized) return;
+  try {
+    storage.setItem(COMPOSER_RECENT_GLOBAL_KEY, JSON.stringify({ modelSelection: normalized }));
+  } catch (error) {
+    logger.warn("[ComposerRecent] 保存全局最近模型选择失败", { error });
+  }
+}
+
 export function readComposerRecent(
   workspacePath: string,
   workspaceIdentity?: string,
@@ -32,7 +66,10 @@ export function readComposerRecent(
   if (!storage) return null;
   try {
     const raw = storage.getItem(resolveComposerRecentKey(workspacePath, workspaceIdentity));
-    if (!raw) return null;
+    if (!raw) {
+      const globalSelection = readGlobalRecentModelSelection(storage);
+      return globalSelection ? { modelSelection: globalSelection } : null;
+    }
     const record: unknown = JSON.parse(raw);
     if (!record || typeof record !== "object" || Array.isArray(record)) return null;
     // 两个叶子独立校验：模型过期或坏数据不能连带丢掉合法权限，反之亦然。
@@ -40,9 +77,12 @@ export function readComposerRecent(
       "modelSelection" in record ? record.modelSelection : record,
     );
     const mode = submissionModeSchema.safeParse("mode" in record ? record.mode : undefined);
-    if (!selection.success && !mode.success) return null;
+    const effectiveSelection = selection.success
+      ? selection.data
+      : (readGlobalRecentModelSelection(storage) ?? undefined);
+    if (!effectiveSelection && !mode.success) return null;
     return {
-      ...(selection.success ? { modelSelection: selection.data } : {}),
+      ...(effectiveSelection ? { modelSelection: effectiveSelection } : {}),
       ...(mode.success ? { mode: mode.data } : {}),
     };
   } catch {
@@ -87,6 +127,7 @@ export function captureComposerRecentSubmission(
     accepted.set(key, sequence);
     try {
       storage.setItem(key, JSON.stringify(recent));
+      persistGlobalRecentModelSelection(modelSelection, storage);
     } catch (error) {
       // 权威发送已经接纳，本地偏好写入失败不能把它报告成发送失败。
       logger.warn("[ComposerRecent] 保存最近提交配置失败", {
@@ -121,6 +162,23 @@ export function resolveDraftInitialModelSelection(
       };
     }
     return { selection: recent, invalidated: false };
+  }
+  const globalRecent = readGlobalRecentModelSelection();
+  if (globalRecent) {
+    const model = findModel(view, globalRecent);
+    if (model) {
+      const reasoning = globalRecent.options?.reasoningLevel;
+      if (
+        reasoning !== undefined &&
+        model.config.optionSpecs.reasoningLevel.values.includes(reasoning)
+      ) {
+        return { selection: globalRecent, invalidated: false };
+      }
+      return {
+        selection: { providerId: globalRecent.providerId, modelId: globalRecent.modelId },
+        invalidated: false,
+      };
+    }
   }
   return {
     selection:

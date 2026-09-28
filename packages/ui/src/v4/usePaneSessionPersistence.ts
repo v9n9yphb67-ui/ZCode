@@ -5,6 +5,9 @@
 // 恢复选择态后 pane 重订阅即可拿到 snapshot+续流。
 // 只有同一 renderer reload 的首个 workspace 会恢复；app 冷启动和 workspace-only
 // 入口保持草稿，不消费上一次运行留下的 session 绑定。
+// Исключение — web/mobile-оболочка (restoreOnFreshLoad): там повторное открытие после
+// выгрузки PWA из памяти iOS/Android — это navigate (не reload), и последнюю сессию нужно
+// восстанавливать и на cold start, иначе пользователь попадает в черновик.
 import { useEffect, useRef } from "react";
 import { isRendererReloadNavigation } from "@/lib/rendererNavigation.js";
 
@@ -41,6 +44,12 @@ interface UsePaneSessionPersistenceParams {
   draftFocusVersion: number;
   /** 手机 /remote 不消费 desktop pane 的本地恢复状态。 */
   enabled?: boolean;
+  /**
+   * Восстанавливать последнюю сессию при любом свежем открытии (cold start), а не только
+   * при renderer-reload. Для web/mobile-оболочки: выгрузка PWA из памяти → повторное
+   * открытие приходит как navigate, и без этого флага восстановление не срабатывало.
+   */
+  restoreOnFreshLoad?: boolean;
   /** 恢复入口：与用户点击任务列表同一条选择路径，保证副作用（已读清理等）一致。 */
   selectSession: (sessionId: string) => void;
 }
@@ -49,11 +58,11 @@ function shouldRestorePersistedPaneSession(params: {
   activeSessionId: string | null;
   draftFocusVersion: number;
   enabled: boolean;
-  rendererReload: boolean;
+  restoreAvailable: boolean;
 }): boolean {
   return (
     params.enabled &&
-    params.rendererReload &&
+    params.restoreAvailable &&
     params.activeSessionId === null &&
     params.draftFocusVersion === 0
   );
@@ -69,12 +78,15 @@ export function usePaneSessionPersistence({
   activeSessionId,
   draftFocusVersion,
   enabled = true,
+  restoreOnFreshLoad = false,
   selectSession,
 }: UsePaneSessionPersistenceParams): void {
   const restoredKeysRef = useRef<Set<string>>(new Set());
   // 只有 reload 后首个 workspace 可以消费刷新前的 pane 绑定；之后打开其它
   // workspace 仍是 workspace-only 入口，必须进入草稿，不能逐个恢复旧 session。
-  const rendererReloadRestoreAvailableRef = useRef(isRendererReloadNavigation());
+  // web/mobile (restoreOnFreshLoad): cold start тоже считается «доступным для восстановления»,
+  // но одноразово — только первый смонтированный workspace, как и при reload.
+  const restoreAvailableRef = useRef(isRendererReloadNavigation() || restoreOnFreshLoad);
   const pendingRestoreRef = useRef<{
     workspaceKey: string;
     sessionId: string;
@@ -86,14 +98,14 @@ export function usePaneSessionPersistence({
     if (!enabled) return;
     if (restoredKeysRef.current.has(workspaceKey)) return;
     restoredKeysRef.current.add(workspaceKey);
-    const rendererReload = rendererReloadRestoreAvailableRef.current;
-    rendererReloadRestoreAvailableRef.current = false;
+    const restoreAvailable = restoreAvailableRef.current;
+    restoreAvailableRef.current = false;
     if (
       !shouldRestorePersistedPaneSession({
         activeSessionId,
         draftFocusVersion,
         enabled,
-        rendererReload,
+        restoreAvailable,
       })
     ) {
       // 冷启动和 workspace-only 入口都必须是草稿。旧 last-session

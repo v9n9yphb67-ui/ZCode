@@ -202,7 +202,14 @@ export function useAppPanels(options: {
   // 交互说明：侧栏显隐按钮放在 App 外层，而不是 Sidebar 内部。
   // 这样即使侧栏被隐藏，入口也仍然留在左上角，不会出现"收起后没有地方再展开"的问题；
   // 同时这里统一处理 macOS 红绿灯安全区，避免按钮和系统窗口控件重叠。
-  const [isSidebarVisible, setIsSidebarVisible] = useState(true);
+  // узкий (мобильный) вьюпорт: сайдбар стартует свёрнутым, чтобы контент занимал весь экран;
+  // на десктопе (широкий экран/Electron) поведение прежнее — сайдбар виден.
+  const [isSidebarVisible, setIsSidebarVisible] = useState(() => {
+    if (typeof window !== "undefined" && window.matchMedia?.("(max-width: 767px)").matches) {
+      return false;
+    }
+    return true;
+  });
   const [browserNavigationRequest, setBrowserNavigationRequest] =
     useState<BrowserNavigationRequest | null>(null);
   const [allRecentClosedSidePaneTabs, setAllRecentClosedSidePaneTabs] = useState<

@@ -122,6 +122,7 @@ import type { ModelSelectionView } from "@zcode/services";
 import type { ModelSelectionState } from "@/hooks/useModelSelectionView.js";
 import type { ZCodeUiError } from "@/lib/zcodeUiError.js";
 import {
+  isMobileTouchViewport,
   resolveComposerAutoFocus,
   type ComposerAutoFocusOptions,
 } from "@/v4/composer/composerAutoFocus.js";
@@ -391,6 +392,8 @@ interface ConversationComposerProps {
    * 竖切多 pane 时由宿主传入 SessionPane.focused，仅焦点 pane 聚焦、后台 pane 不抢焦点。
    */
   autoFocusEnabled?: boolean;
+  /** 是否处于移动端/触控视口；移动端下跳过自动聚焦，避免每次开屏自动弹起软键盘。 */
+  isMobileViewport?: boolean;
   /** 当前 composer 是否运行在手机 Web 远控壳中。 */
   workspacePath: string;
   workspaceIdentity?: string;
@@ -536,6 +539,7 @@ function ConversationComposerImpl({
   suppressGoalCommands = false,
   appSlashCommands,
   onDropTargetControllerChange,
+  isMobileViewport: isMobileViewportProp,
 }: ConversationComposerProps) {
   const { intl, locale } = useZCodeIntl();
   const services = useOptionalServices();
@@ -607,12 +611,20 @@ function ConversationComposerImpl({
   const appleKeyboardPlatform = isAppleKeyboardPlatform();
   const enterSubmits = true;
   const sendShortcut = resolveChatEnterShortcut({ enterSubmits });
+  const hasTextStateRef = useRef(false);
   const updateText = useCallback(
     (next: string) => {
       textRef.current = next;
       contentRevisionRef.current += 1;
       advanceComposerDraftRevision(workspacePath, workspaceIdentity);
-      setText(next);
+      // 输入优化（手机/Web 打字流畅度）：ConversationComposer 自身仅通过 hasText/hasComposerDraftContent
+      // 判定发送按钮是否激活，不展示 text 正文。仅在「空 ↔ 非空」切换时触发组件重渲染，
+      // 避免输入或删改部分单词时逐字重跑庞大的 Composer Hook 树与子组件。
+      const nextHasText = next.trim().length > 0;
+      if (nextHasText !== hasTextStateRef.current) {
+        hasTextStateRef.current = nextHasText;
+        setText(next);
+      }
       onTextChange?.(next);
     },
     [onTextChange, workspaceIdentity, workspacePath],
@@ -819,17 +831,18 @@ function ConversationComposerImpl({
   const reversePointerDeliveryRef = useRef(false);
   const appliedComposerRestoreRequestRef = useRef<number | null>(null);
   const appliedExternalTextInsertRequestRef = useRef<number | null>(null);
+  const isMobileViewport = isMobileViewportProp ?? isMobileTouchViewport();
   // 决策入参经 ref 读取，避免把 autoFocusEnabled/disabled/viewport 灌进 scope effect 依赖，
   // 触发多余的草稿重恢复（disabled 变化本不应重放草稿）。
   const focusOptsRef = useRef<ComposerAutoFocusOptions>({
     autoFocusEnabled,
     disabled,
-    isMobileViewport: false,
+    isMobileViewport,
   });
   focusOptsRef.current = {
     autoFocusEnabled,
     disabled,
-    isMobileViewport: false,
+    isMobileViewport,
   };
   const flushPendingFocus = useCallback(() => {
     if (!pendingFocusRef.current) return;
@@ -1471,11 +1484,11 @@ function ConversationComposerImpl({
     (value: string) => {
       conversationTelemetry?.recordComposerTextChange(value);
       updateText(value);
-      // 正文先进入与 mode/model 相同的内存 Draft；防抖只负责补充最新 Lexical JSON。
-      updateComposerContent({ text: value });
+      // 正文由 scheduleDraftPersist 防抖（350ms）后集中提交内存 Draft 与存储，
+      // 避免每次输入/删改单词字符同步穿透触发上层 SessionPane 整体重渲染与卡顿。
       scheduleDraftPersist();
     },
-    [conversationTelemetry, scheduleDraftPersist, updateComposerContent, updateText],
+    [conversationTelemetry, scheduleDraftPersist, updateText],
   );
 
   const handleEditorFocus = useCallback(() => {
@@ -2210,7 +2223,9 @@ function ConversationComposerImpl({
         ref={attachmentsApi.attachmentInputRef}
         type="file"
         multiple
-        className="hidden"
+        aria-hidden="true"
+        tabIndex={-1}
+        className="sr-only"
         onChange={attachmentsApi.handleAttachmentInputChange}
       />
       {visibleError ? (

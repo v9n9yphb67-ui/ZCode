@@ -916,6 +916,10 @@ export function AnimatedSidePanePanel({
       className={cn(
         // 独立外框放在内容层：关闭仍保留 Browser Guest 和 tab 实例，不改变面板持久化边界。
         "h-full overflow-hidden bg-background",
+        // Телефон: игнорируем залоченную ширину контента (lockedContentStyle ≈52% — desktop-приём
+        // против reflow во время flex-анимации). Иначе в момент открытия контент мигает узкой
+        // колонкой внутри overlay. На телефоне контент — во всю ширину drawer-а.
+        "max-md:!w-full",
         frameClassName,
       )}
       style={lockedContentStyle}
@@ -1343,6 +1347,8 @@ export function AnimatedSidePanePanel({
           data-workspace-side-pane-resize-handle="true"
           className={cn(
             // 拖动条占据真实 4px 间距，关闭时随 handle 一起移除，不为隐藏面板保留空隙。
+            // На телефоне side-pane — overlay-drawer, ручка ресайза не нужна.
+            "max-md:hidden",
             "aria-[orientation=vertical]:w-1 aria-[orientation=vertical]:translate-x-0 aria-[orientation=vertical]:my-0 aria-[orientation=vertical]:h-full",
             "hover:bg-transparent data-[separator=hover]:bg-transparent data-[separator=active]:bg-transparent focus-visible:bg-transparent",
             "aria-[orientation=vertical]:[mask-image:none] aria-[orientation=vertical]:[-webkit-mask-image:none]",
@@ -1367,9 +1373,15 @@ export function AnimatedSidePanePanel({
         disabled={isResizeDisabled}
         className={cn(
           "!overflow-hidden transition-opacity duration-200 ease-out",
+          // Телефон: side-pane — drawer СПРАВА. Геометрия (absolute, right, ширина 92vw,
+          // pointer-events:none) — на ВНЕШНЕМ #browser через CSS в index.html (иначе замер ширины
+          // ломается и контент не грузится). Здесь внутренний div заполняет тот контейнер (inset-0),
+          // несёт фон/тень, выезжает transform-ом и включает pointer-events (внешний их гасит).
+          "max-md:!absolute max-md:inset-0 max-md:z-40 max-md:!opacity-100 max-md:bg-background max-md:shadow-2xl max-md:!transition-transform max-md:duration-200 max-md:ease-out max-md:will-change-transform",
           // 截图期间 panel 仍保持 opacity=1，避免 opacity=0 让 Chromium 丢弃 guest
           // compositor surface；实际 browser surface 已 fixed 到窗口内的低透明合成层，不会露出 tab 栏。
           isVisible || isScreenshotSurfaceActive ? "opacity-100" : "pointer-events-none opacity-0",
+          isVisible ? "max-md:translate-x-0 max-md:pointer-events-auto" : "max-md:translate-x-full",
         )}
       >
         {panelContent}

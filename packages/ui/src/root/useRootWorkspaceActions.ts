@@ -87,6 +87,7 @@ export function useRootWorkspaceActions({
   onProviderFamilyDomainClearedAfterLogout,
   userId,
   onOpenRemoteConnection,
+  isDesktop,
   workbenchGroupClientMode = "desktop-continuous",
 }: {
   intl: ReturnType<typeof import("@/i18n/IntlProvider.js").useZCodeIntl>["intl"];
@@ -107,6 +108,7 @@ export function useRootWorkspaceActions({
   onProviderFamilyDomainClearedAfterLogout?: () => void;
   userId?: string;
   onOpenRemoteConnection?: (preference?: OpenRemoteConnectionPreference) => void;
+  isDesktop?: boolean;
   workbenchGroupClientMode?: ZCodeTaskClientMode;
 }) {
   const [workspaceActionError, setWorkspaceActionError] = useState<string | null>(null);
@@ -124,10 +126,13 @@ export function useRootWorkspaceActions({
 
   useEffect(() => {
     useWorkbenchGroupStore.getState().configureClientMode(workbenchGroupClientMode);
-    if (workbenchGroupClientMode === "desktop-continuous" && !isRendererReloadNavigation()) {
+    if (workbenchGroupClientMode === "desktop-continuous" && !isRendererReloadNavigation() && isDesktop) {
       // group/pane 是 renderer-local 持久化 UI 状态。app 冷启动如果直接
       // 激活它们，即使 activeTaskId=null 也会把历史 session 显示出来，违背启动草稿语义。
       // renderer reload 则保留恢复资格，用于输出中刷新续流。
+      // web/mobile (isDesktop=false): НЕ деактивируем восстановленную группу на cold start —
+      // выгрузка PWA из памяти должна возвращать последнюю сессию, даже если она в «Группе»
+      // (split/workbench group). Зеркалит reload; невалидные привязки чистит sessions-index.
       const workbenchState = useWorkbenchGroupStore.getState();
       const activeGroup = workbenchState.activeGroupId
         ? workbenchState.groups[workbenchState.activeGroupId]
@@ -145,7 +150,7 @@ export function useRootWorkspaceActions({
         usePaneLayoutStore.getState().resetToPrimaryPane();
       }
     }
-  }, [workbenchGroupClientMode]);
+  }, [isDesktop, workbenchGroupClientMode]);
 
   const startDraftInWorkspace = useCallback(
     (workspacePath: string, workspaceIdentity?: string) => {

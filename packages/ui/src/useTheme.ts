@@ -21,6 +21,8 @@ export function resolveTheme(theme: Theme): ResolvedTheme {
 export function normalizeThemePreference(theme: Theme): Theme {
   if (theme === "dark") return "zai-dark";
   if (theme === "light") return "zai-light";
+  // Миграция удалённой экспериментальной темы: сохранённый liquid-glass откатывается на zai-dark.
+  if ((theme as string) === "liquid-glass") return "zai-dark";
   return theme;
 }
 

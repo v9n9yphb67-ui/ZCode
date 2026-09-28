@@ -451,6 +451,12 @@ export function useComposerAttachments(
             uploadError: message,
             uploadErrorKind: transient ? "transient" : "permanent",
           }));
+          // Мобайл: у media-вложения отказ показывался только «!»-оверлеем (текст ошибки —
+          // в aria-label/title), на телефоне его не прочитать по тапу. Дублируем реальную
+          // причину в видимый баннер под композером — отказ становится читаемым и диагностируемым.
+          setAttachmentError(
+            intl.formatMessage({ id: "chat.attachments.upload.failed" }, { message }),
+          );
           logger.warn("[v4-composer-attachments] 附件上传失败", {
             attachmentId,
             error: message,
@@ -466,7 +472,7 @@ export function useComposerAttachments(
         pumpQueueRef.current();
       }
     },
-    [enqueueUpload, finishWithReady, intl, updateItem],
+    [enqueueUpload, finishWithReady, intl, setAttachmentError, updateItem],
   );
 
   const pumpQueue = useCallback(() => {

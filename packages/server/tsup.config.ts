@@ -46,6 +46,9 @@ export const SERVER_HTTP_EXTERNAL_DEPENDENCIES = [
   // 云内容 ZIP 解包链路引入 yauzl，其 CommonJS require("fs") 在 ESM
   // bundle 加载时崩溃；与 desktop 相同，外置后交给 Node 原生加载。
   "yauzl",
+  // web-push 是 CJS，内部对 https/crypto 走动态 require；内联进 ESM bundle 会命中
+  // Dynamic require not supported。与 node-forge/yazl 同策略，外置交给 Node 原生加载。
+  "web-push",
 ];
 
 export default defineConfig({

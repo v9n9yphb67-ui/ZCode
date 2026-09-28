@@ -27,6 +27,7 @@ const runtimePackageNames = [
   // HTTP bundle 将 yauzl 外置；发行包必须携带它，否则脱离仓库就无法启动后端。
   "yauzl",
   "node-forge",
+  "web-push",
 ];
 
 export async function stageTuiRuntime(packageRoot) {

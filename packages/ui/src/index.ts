@@ -82,6 +82,15 @@ export {
 export type { FileDisplayDescriptor, FileDisplayOptions } from "./lib/fileDisplay.js";
 export { playTaskNotificationSound } from "./lib/taskNotificationSound.js";
 export {
+  isWebPushSupported,
+  getWebPushPermission,
+  registerPushServiceWorker,
+  isWebPushActive,
+  enableWebPush,
+  disableWebPush,
+} from "./lib/webPush.js";
+export type { EnableWebPushResult } from "./lib/webPush.js";
+export {
   applyUiFontSizePx,
   loadUiFontSizePx,
   subscribeToUiFontSizeStorageChanges,

@@ -23,9 +23,11 @@ export function useRootPlatformEffects({
   initialWorkspaceAbsPath,
   initialWorkspaceIdentity,
   initialWorkspacePurpose,
+  initialWorkspaces,
   initialTaskId,
   canBootstrapInitialWorkspace = true,
   addTab,
+  ensureWorkspaceTab,
   setIsBootstrappingInitialWorkspace,
   platform,
   activateTabByPath,
@@ -50,6 +52,7 @@ export function useRootPlatformEffects({
   initialWorkspaceAbsPath?: string;
   initialWorkspaceIdentity?: string;
   initialWorkspacePurpose?: import("@zcode/shared").WorkspacePurpose;
+  initialWorkspaces?: Array<{ workspacePath: string; workspaceIdentity?: string }>;
   initialTaskId?: string;
   canBootstrapInitialWorkspace?: boolean;
   addTab: (
@@ -59,6 +62,13 @@ export function useRootPlatformEffects({
       workspacePurpose?: import("@zcode/shared").WorkspacePurpose;
     },
   ) => void;
+  ensureWorkspaceTab: (
+    workspacePath: string,
+    options?: {
+      workspaceIdentity?: string;
+      workspacePurpose?: import("@zcode/shared").WorkspacePurpose;
+    },
+  ) => unknown;
   setIsBootstrappingInitialWorkspace: (value: boolean) => void;
   platform: IPlatformService;
   activateTabByPath: (workspacePath: string, options?: { workspaceIdentity?: string }) => boolean;
@@ -98,25 +108,55 @@ export function useRootPlatformEffects({
 
     didBootstrapInitialWorkspaceRef.current = true;
     if (initialWorkspaceAbsPath) {
-      addTab(
-        initialWorkspaceAbsPath,
+      const initialWorkspaceOptions =
         initialWorkspaceIdentity || initialWorkspacePurpose
           ? {
               ...(initialWorkspaceIdentity ? { workspaceIdentity: initialWorkspaceIdentity } : {}),
               ...(initialWorkspacePurpose ? { workspacePurpose: initialWorkspacePurpose } : {}),
             }
-          : undefined,
-      );
+          : undefined;
+      // На вебе НЕ форсим активацию первого проекта на холодном старте: restore уже мог
+      // восстановить активную вкладку (последняя сессия, напр. «Задачи»), а addTab перебил бы
+      // её на primary (первый в ZCODE_SERVER_WORKSPACE = game-creation-engine) → всегда gce
+      // вместо последнего чата. ensureWorkspaceTab гарантирует наличие вкладки БЕЗ кражи фокуса.
+      // addTab (с активацией) оставляем для: desktop, открытия по initialTaskId, и свежего
+      // старта без restore (activeWorkspacePath ещё пуст).
+      if (!isDesktop && !initialTaskId && activeWorkspacePath) {
+        ensureWorkspaceTab(initialWorkspaceAbsPath, initialWorkspaceOptions);
+      } else {
+        addTab(initialWorkspaceAbsPath, initialWorkspaceOptions);
+      }
       if (initialTaskId) {
         useZCodeSessionStore
           .getState()
           .setActiveTaskId(initialWorkspaceAbsPath, initialTaskId, initialWorkspaceIdentity);
-      } else if (!isRendererReloadNavigation()) {
-        // main 注入 initial workspace 只表达工作区入口；没有显式 taskId
-        // 的 app 冷启动必须进入草稿，不能让 renderer-local last-session/group/pane
-        // 抢回历史会话；同一 renderer reload 则保留当前 session 续流资格。
+      } else if (!isRendererReloadNavigation() && isDesktop) {
+        // Desktop cold start: main инжектит initial workspace лишь как вход в рабочую папку;
+        // без явного taskId холодный старт уходит в черновик, чтобы renderer-local
+        // last-session/group/pane не перехватывал историю (renderer reload — сохраняет).
+        // web/mobile (isDesktop=false): НЕ форсим черновик — usePaneSessionPersistence
+        // (restoreOnFreshLoad) восстановит последнюю сессию после выгрузки PWA из памяти,
+        // иначе повторное открытие всегда даёт пустой новый чат.
         startDraftInWorkspace(initialWorkspaceAbsPath, initialWorkspaceIdentity);
       }
+    }
+    // Мульти-workspace: остальные рабочие пространства сервера добавляем вкладками БЕЗ кражи
+    // фокуса (первое остаётся активным). Так на вебе открываются и проект, и conversation-default.
+    for (const extra of initialWorkspaces ?? []) {
+      if (!extra.workspacePath || extra.workspacePath === initialWorkspaceAbsPath) {
+        continue;
+      }
+      // conversation-workspace (~/.zcode/workspace/default) помечаем purpose=conversation,
+      // иначе он попадает в «Проекты» как обычный проект, а секция «Задачи»
+      // (рендерит conversationWorkspaceTabs) остаётся пустой — чаты из conversation-«+»
+      // не видны там, где их ждут. С этим флагом workspace уходит в «Задачи» и чаты видны.
+      const isConversationWorkspace = /[\\/]\.zcode[\\/]workspace[\\/]default[\\/]?$/i.test(
+        extra.workspacePath,
+      );
+      ensureWorkspaceTab(extra.workspacePath, {
+        ...(extra.workspaceIdentity ? { workspaceIdentity: extra.workspaceIdentity } : {}),
+        ...(isConversationWorkspace ? { workspacePurpose: "conversation" as const } : {}),
+      });
     }
     // Dock 最近项目会通过 initialWorkspaceAbsPath 直达工作区。
     // 如果这里仍然等首屏先按默认空 tab 渲染一次，窗口会先闪出打开工作区中间页，
@@ -125,10 +165,13 @@ export function useRootPlatformEffects({
     setIsBootstrappingInitialWorkspace(false);
   }, [
     addTab,
+    ensureWorkspaceTab,
+    activeWorkspacePath,
     canBootstrapInitialWorkspace,
     initialTaskId,
     initialWorkspaceAbsPath,
     initialWorkspaceIdentity,
+    initialWorkspaces,
     initialWorkspacePurpose,
     setIsBootstrappingInitialWorkspace,
     startDraftInWorkspace,

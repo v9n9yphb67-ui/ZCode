@@ -14,6 +14,8 @@ export interface RootProps {
   unavailableWorkspacePath?: string;
   /** 初始 workspace 的身份隔离键，远程工作区需要透传 */
   initialWorkspaceIdentity?: string;
+  /** Мульти-workspace: все рабочие пространства сервера; [0] активна, остальные добавляются вкладками. */
+  initialWorkspaces?: Array<{ workspacePath: string; workspaceIdentity?: string }>;
   /** 初始要打开的 task，从全局 task 列表进入时透传 */
   initialTaskId?: string;
   /** Electron renderer 传 true，用于启用自绘标题栏 */

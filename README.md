@@ -8,7 +8,7 @@
   <a href="https://discord.gg/z9aBcQXZQ3">Discord</a>
 </p>
 <p align="center">
-  简体中文 | <a href="README.en.md">English</a>
+  简体中文 | <a href="README.en.md">English</a> | <a href="README.web.md">Web & Mobile PWA Edition</a>
 </p>
 
 ZCode 是 AI 编程工作台，提供桌面应用、浏览器界面和终端 Agent。本仓库包含客户端、后端服务、共享 UI，以及 Agent CLI 与运行时源码。

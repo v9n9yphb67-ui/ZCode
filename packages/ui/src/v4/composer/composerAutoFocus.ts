@@ -1,3 +1,5 @@
+import { isCoarseTouchDevice } from "@/lib/pickerFocus.js";
+
 /**
  * composer 自动聚焦决策（纯函数，脱离 React/DOM 便于单测）。
  *
@@ -18,6 +20,20 @@ export interface ComposerAutoFocusOptions {
   disabled: boolean;
   /** 是否移动端文本输入 viewport。 */
   isMobileViewport: boolean;
+}
+
+export function isMobileTouchViewport(): boolean {
+  if (typeof window === "undefined") {
+    return false;
+  }
+  if (isCoarseTouchDevice()) {
+    return true;
+  }
+  const isNarrowScreen =
+    typeof window.matchMedia === "function" && window.matchMedia("(max-width: 767px)").matches;
+  const hasTouchPoints =
+    typeof navigator !== "undefined" && navigator.maxTouchPoints > 0 && window.innerWidth <= 1024;
+  return isNarrowScreen || hasTouchPoints;
 }
 
 export function resolveComposerAutoFocus({

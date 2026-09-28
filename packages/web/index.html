@@ -2,9 +2,19 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#161616" />
     <meta name="color-scheme" content="dark" />
+    <!-- ZCode Remote：PWA/standalone 支持。iPhone Safari 无 manifest 与 apple-mobile-web-app 元信息时，
+         「添加到主屏幕」只能以带浏览器边框的迷你视图打开；补齐后可作为独立窗口（无边框）启动。
+         注意：standalone 不改变 iOS 后台会挂起页面的行为，仅解决无边框安装与图标/启动屏。-->
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black" />
+    <meta name="apple-mobile-web-app-title" content="ZCode" />
+    <meta name="application-name" content="ZCode" />
+    <link rel="apple-touch-icon" href="/app-icon.png" />
     <!-- Chrome dev 下可能不发 favicon 网络请求；内嵌小尺寸 App 图标，避免标签页回退到默认图标。-->
     <link
       rel="icon"
@@ -41,7 +51,22 @@
         };
 
         try {
-          const saved = localStorage.getItem(STORAGE_KEY) || DEFAULT_THEME;
+          let saved = localStorage.getItem(STORAGE_KEY) || DEFAULT_THEME;
+          try {
+            const themeFromUrl = new URLSearchParams(window.location.search).get("theme");
+            if (
+              themeFromUrl === "zai-dark" ||
+              themeFromUrl === "zai-light" ||
+              themeFromUrl === "dark" ||
+              themeFromUrl === "light" ||
+              themeFromUrl === "system"
+            ) {
+              saved = themeFromUrl;
+              localStorage.setItem(STORAGE_KEY, themeFromUrl);
+            }
+          } catch {
+            /* ignore URL theme override errors */
+          }
           const resolved =
             saved === "system"
               ? window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches
@@ -68,6 +93,47 @@
         width: 100%;
         height: 100%;
         margin: 0;
+        overscroll-behavior: none;
+      }
+
+      /* iOS: не давать всему документу «уезжать» за экран (rubber-band) —
+         скроллит только внутренний контейнер приложения. */
+      html,
+      body {
+        overflow: hidden;
+        touch-action: manipulation;
+      }
+
+      /* iOS Safari зумит при фокусе на поле ввода, если шрифт < 16px.
+         Держим >=16px на мобильных; pinch-zoom страницы при этом не трогаем. */
+      @media (max-width: 767px) {
+        input,
+        textarea,
+        select,
+        [contenteditable="true"] {
+          font-size: 16px !important;
+        }
+        /* Правый side-pane (браузер/дифф/просмотр) на телефоне: react-resizable-panels
+           заворачивает панель в ДВА div — внешний держит ширину во flex-раскладке, внутренний
+           берёт className. Стили наезжающего overlay попадали на ВНУТРЕННИЙ div, а ВНЕШНИЙ всё
+           равно занимал ~48% и ужимал чат (это видно в момент анимации). Убираем внешний div
+           панели (#browser) из flex-потока → чат всегда 100%, контент наезжает overlay-ем. */
+        [data-panel]#browser {
+          /* absolute (НЕ flex:0!) — вне flex-потока (чат = 100%, без сжатия), НО с реальной
+             шириной: замер ширины панели (gate renderHeavyContent ≥96px) должен видеть ненулевую
+             ширину, иначе контент правого пане не грузится (только скелетон). Прозрачный +
+             pointer-events:none — не перехватывает тапы по чату; видимый drawer, фон и клики — на
+             внутреннем div (className), который заполняет этот контейнер и выезжает transform-ом. */
+          position: absolute !important;
+          top: 0 !important;
+          bottom: 0 !important;
+          right: 0 !important;
+          left: auto !important;
+          width: min(92vw, 560px) !important;
+          min-width: 0 !important;
+          z-index: 40 !important;
+          pointer-events: none !important;
+        }
       }
 
       body {

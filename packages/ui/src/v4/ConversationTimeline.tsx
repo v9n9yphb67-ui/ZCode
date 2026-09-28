@@ -94,7 +94,8 @@ import type { ConversationSelectionReference } from "@/lib/conversationSelection
 // 让未传该属性的渲染绕过稳定引用边界；共享只读空数组可保持默认值恒定。
 const EMPTY_PENDING_GUIDES: readonly QueueItem[] = [];
 
-const ROW_OVERSCAN = 8;
+// 移动端/大屏滚动预渲染缓冲：从 8 调至 12，避免快速甩动手势时虚拟窗口边缘出现白色闪烁。
+const ROW_OVERSCAN = 12;
 const RUNNING_WORK_DURATION_TICK_MS = 1000;
 const COMPOSER_MESSAGE_MASK_FADE_PX = 24;
 const COMPOSER_MESSAGE_MASK_TRANSPARENT_HEIGHT_PX = 96;
@@ -1746,7 +1747,8 @@ function ConversationTimelineImpl({
           // 横向跳动；稳定预留 gutter，让桌面与手机 Web 共用的滚动区宽度保持不变。
           // 只声明 overflow-y-auto 会让浏览器把横轴计算为 auto，宽内容会把
           // 整条 Conversation 撑出横向滚动；表格和代码块应由各自内部容器滚动。
-          "min-h-0 flex-1 overflow-x-hidden overflow-y-auto [scrollbar-gutter:stable] [--markdown-table-layout-left-inset:16px] [--markdown-table-layout-right-inset:16px] max-md:[--markdown-table-layout-left-inset:8px] max-md:[--markdown-table-layout-right-inset:8px]",
+          // 移动端：启用 iOS 原生惯性滑动 [-webkit-overflow-scrolling:touch] 与 [overscroll-behavior-y:contain]。
+          "min-h-0 flex-1 overflow-x-hidden overflow-y-auto [-webkit-overflow-scrolling:touch] [overscroll-behavior-y:contain] [scrollbar-gutter:stable] [--markdown-table-layout-left-inset:16px] [--markdown-table-layout-right-inset:16px] max-md:[--markdown-table-layout-left-inset:8px] max-md:[--markdown-table-layout-right-inset:8px]",
           // 分享选择面板展开时改为 overflow-hidden：scrollTop 与 scrollbar-gutter 都保持不变，
           // 但原生滚动条、滚轮和键盘翻页都不再能移动背景，勾选目标不会漂走。
           backgroundScrollLocked && "!overflow-y-hidden",
@@ -1835,7 +1837,8 @@ function ConversationTimelineImpl({
                       data-turn-id={unit.turnId}
                       // virtual history 的子项通过 absolute 定位，父级 padding 不会缩小
                       // 它们的 containing block；正文响应式内边距必须落在 turn wrapper 自身。
-                      className="absolute left-0 top-0 w-full"
+                      // 渲染性能：will-change-transform 与 contain:layout_style 隔离各虚拟行图层，避免滚动时全文档反复重绘重排。
+                      className="absolute left-0 top-0 w-full will-change-transform [contain:layout_style]"
                       style={{ transform: `translateY(${virtualRow.start - headerSlotHeight}px)` }}
                     >
                       <ConversationTurnGroup
@@ -1863,7 +1866,7 @@ function ConversationTimelineImpl({
                   data-v4-timeline-content-column="true"
                   className={cn(
                     // ≥1280px 面板让位时降级为只过渡 transform，避免大范围跳变叠加位移抖动。
-                    "relative mx-auto w-full shrink-0 transition-[width,max-width,transform] duration-150 ease-out @min-[1280px]/conversation:transition-[transform]",
+                    "relative mx-auto w-full shrink-0 [contain:layout_style] transition-[width,max-width,transform] duration-150 ease-out @min-[1280px]/conversation:transition-[transform]",
                     contentWidthClassName,
                     summaryPanelInlineOffsetClassName,
                   )}
