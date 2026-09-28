@@ -1,11 +1,11 @@
 # ZCode Touch (Mobile Web & PWA)
 
 <p align="center">
-  <strong>Full-featured desktop ZCode on mobile screens: self-hosted without cloud dependencies, rock-solid scrolling, instant restoration, and Russian localization.</strong>
+  <strong>Full-featured desktop ZCode on mobile screens: self-hosted without cloud dependencies, smooth scrolling, instant restoration, and Russian localization.</strong>
 </p>
 
 <p align="center">
-  <a href="README.md">Русский</a> • <strong>English</strong> • <a href="README.upstream-zh.md">Original README (中文)</a> • <a href="README.upstream-en.md">Original Upstream (EN)</a>
+  <a href="https://github.com/v9n9yphb67-ui/ZCode/blob/iphone-web/README.ru.md">Русский</a> • <strong>English</strong> • <a href="https://github.com/v9n9yphb67-ui/ZCode/blob/iphone-web/README.upstream-zh.md">Original README (中文)</a> • <a href="https://github.com/v9n9yphb67-ui/ZCode/blob/iphone-web/README.upstream-en.md">Original Upstream (EN)</a>
 </p>
 
 <p align="center">
@@ -40,15 +40,18 @@ Previously, remote phone usage relied on the official ZCode cloud relay (`zcode.
 
 ## Key Highlights
 
-### 1. Self-Hosted Without ZCode Cloud
+### 1. Self-Hosted, No ZCode Cloud
 Direct local connection between your mobile device and your PC over home Wi-Fi (~1 ms latency):
-* Complete independence from external `zcode.z.ai` relay infrastructure.
+* Complete independence from the external `zcode.z.ai` relay.
+* Everything feels instant locally: sending messages, streaming responses, and navigation react with no cloud-middleman lag. Access via the tunnel is a bit slower than LAN but still bypasses the ZCode cloud relay.
 * Session restoration speed after backgrounding or OS memory reclaim increased dramatically: no more pairing screens, reconnection is instant over local WebSockets.
+* Not limited to home Wi-Fi: the `--tunnel` mode (Cloudflare Tunnel) exposes the same server from anywhere over HTTPS — no public IP, no port forwarding, and without taking your phone's VPN slot (see [Remote Access](#remote-access-outside-home-network)).
 
-### 2. Rock-Solid Scrolling Without Jitter in Long Sessions
-Completely eliminated scroll jumping and stuttering in long threads:
+### 2. Smooth Scrolling in Long Sessions
+Gone are the constant jumps and stutter of the cloud relay's message list:
 * Smooth scrolling even in massive conversations packed with tool calls.
-* Hardware-accelerated iOS momentum scrolling (`-webkit-overflow-scrolling: touch`), row style isolation, and expanded virtual buffer.
+* Hardware-accelerated iOS momentum scrolling (`-webkit-overflow-scrolling: touch`), row style isolation, an expanded virtualization buffer, and stick-to-bottom coalesced into a single frame.
+* Honest note: on app launch the list may jitter for the first 1–2 seconds while it restores position and measures message heights — then scrolling settles.
 
 ### 3. Substantial Speed & Navigation Optimizations
 * Eliminated typing lag and freezes when editing or backspacing text in Safari (debounced drafts, detached heavy re-renders).
