@@ -9,9 +9,8 @@
  * зависит от подключённого клиента), поэтому пуш срабатывает и с закрытым приложением.
  *
  * Требует secure context (HTTPS) на стороне клиента — иначе браузер не даст подписаться
- * (PushManager/Notification недоступны на http). Для сред без HTTPS используется ntfy-мост.
+ * (PushManager/Notification недоступны на http). Для сред без HTTPS Web Push недоступен.
  */
-import { randomBytes } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
@@ -36,8 +35,6 @@ interface StoredSubscription {
 interface WebPushStore {
   vapid: { publicKey: string; privateKey: string };
   subscriptions: StoredSubscription[];
-  /** ntfy-мост: сервер POST-ит уведомление сюда при завершении задачи (работает по http, без VPN). */
-  ntfy?: { topic: string; server: string };
 }
 
 /**
@@ -123,28 +120,6 @@ export function createWebPushService(params: {
       tag: `zcode-task:${taskId}:${failed ? "failed" : "completed"}`,
       taskId,
     });
-    void sendNtfy(body, failed);
-  }
-
-  async function sendNtfy(body: string, failed: boolean): Promise<void> {
-    await ready;
-    const ntfy = store?.ntfy;
-    if (!ntfy?.topic) return;
-    try {
-      // Заголовок ntfy шлём только ASCII ("ZCode") — не-ASCII в HTTP-заголовке ломается;
-      // русский текст едет в теле (UTF-8, целое).
-      await fetch(`${ntfy.server}/${encodeURIComponent(ntfy.topic)}`, {
-        method: "POST",
-        headers: {
-          Title: "ZCode",
-          Priority: failed ? "high" : "default",
-          Tags: failed ? "rotating_light" : "white_check_mark",
-        },
-        body,
-      });
-    } catch (error: unknown) {
-      log("[ntfy] отправка не удалась:", error);
-    }
   }
 
   async function broadcast(payload: {
@@ -190,10 +165,6 @@ export function createWebPushService(params: {
           subscriptions: Array.isArray(parsed.subscriptions)
             ? parsed.subscriptions.filter(isValidSubscription)
             : [],
-          // Тему ntfy обязательно переносим из файла: без этого она не читалась и
-          // генерировалась заново на КАЖДОМ старте сервера — тогда подписка на телефоне
-          // (на прежнюю тему) переставала совпадать и уведомления «пропадали».
-          ...(parsed.ntfy?.topic ? { ntfy: parsed.ntfy } : {}),
         };
       }
     } catch {
@@ -205,11 +176,6 @@ export function createWebPushService(params: {
     }
     store = loaded;
     webpush.setVapidDetails(VAPID_SUBJECT, loaded.vapid.publicKey, loaded.vapid.privateKey);
-    if (!loaded.ntfy?.topic) {
-      // Тема на публичном ntfy.sh: длинное случайное имя = практическая приватность.
-      loaded.ntfy = { topic: `zcode-${randomBytes(9).toString("hex")}`, server: "https://ntfy.sh" };
-    }
-    log(`[ntfy] тема уведомлений: ${loaded.ntfy.server}/${loaded.ntfy.topic}`);
     await persist();
     attachWorkspaceListeners();
   })().catch((error: unknown) => log("[web-push] инициализация не удалась:", error));

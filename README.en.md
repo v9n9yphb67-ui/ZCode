@@ -79,7 +79,7 @@ The desktop `ZCode.exe` application and the local web server share **the exact s
 
 ## Additional Mobile Refinements
 
-* 🔔 **Background alerts:** Server pushes an alert to your phone on task completion or failure. On a plain-HTTP LAN the ntfy bridge handles it (no VPN or SSL); over HTTPS (through the tunnel) native PWA Web Push additionally comes to life.
+* 🔔 **Background alerts (Web Push):** Over HTTPS (through the tunnel), the server sends a system push straight into the PWA on task completion or failure — even with the app closed.
 * ⌨️ **Smart keyboard focus:** The virtual keyboard opens *strictly upon tapping the input box*, not automatically on page loads or session switches.
 * 📎 **Wi-Fi attachments:** Photos and files upload seamlessly over local HTTP via a pure JS SHA-256 fallback (bypassing HTTPS WebCrypto restrictions).
 * 📁 **Multi-workspace support:** Server handles multiple project directories simultaneously (`dir1;dir2`), exposing default conversations cleanly.
@@ -113,19 +113,16 @@ http://192.168.x.x:3040/?token=YOUR_TOKEN
 2. Tap **Share** -> **Add to Home Screen**.
 3. Launch ZCode Touch from the home screen icon as a standalone fullscreen app.
 
-### Task-completion notifications (ntfy)
+### Task-completion notifications (Web Push)
 
-Push to your phone when a background task finishes or errors — works on any network (HTTP and HTTPS), no VPN or certificates.
+A system push straight into the PWA when a background task finishes or errors — works over HTTPS (through the tunnel), with no third-party app and no message quotas.
 
-1. On startup the server prints your personal topic to the console:
-   ```
-   [ntfy] notification topic: https://ntfy.sh/zcode-xxxxxxxxxxxxxxxx
-   ```
-2. Install the **ntfy** app ([App Store](https://apps.apple.com/app/ntfy/id1625396347) / [Google Play](https://play.google.com/store/apps/details?id=io.heckel.ntfy)).
-3. In the app, subscribe to that topic (default server is `ntfy.sh`).
-4. Done — you get a push when a task completes, even with ZCode closed.
+1. Open the app over its HTTPS link (`--tunnel` mode) and add it to your home screen.
+2. Go to **"Settings → General → Push to this device"** and turn the toggle on.
+3. Allow notifications when the system prompts.
+4. Done — you get a system push when a task completes, even with ZCode closed.
 
-The topic is a long random name (that is its privacy) and persists across server restarts. Over HTTPS (through the tunnel), native PWA Web Push also comes to life alongside ntfy — enable it under "Settings → General → Push to this device".
+> Web Push requires a secure connection (HTTPS): on a plain-HTTP LAN browsers block system notifications — use `--tunnel` mode for HTTPS access.
 
 ### Configuring Multi-Workspace (Multiple Project Folders)
 
@@ -160,7 +157,7 @@ Tunnel:  https://xxxx.trycloudflare.com/?token=YOUR_TOKEN
 ### Advantages of Cloudflare Tunnel:
 * **Keeps your mobile VPN slot free:** On iOS and Android, you can keep your primary VPN connected — the tunnel routes over standard HTTPS.
 * **No public IP or port forwarding required:** Works behind CGNAT and firewalls via outbound edge connections.
-* **Native Web Push enabled:** Secure HTTPS automatically enables the built-in PWA Web Push toggle under "Settings → Notifications" (in addition to the ntfy bridge for plain HTTP LAN).
+* **Native Web Push:** Secure HTTPS enables system PWA push notifications — turn them on under "Settings → General → Push to this device".
 * **Custom domain support (optional):** If you run a permanent named tunnel on Cloudflare Zero Trust, pass your token via `--tunnel-token <TOKEN>` or the `CLOUDFLARE_TUNNEL_TOKEN` environment variable.
 
 > Requires [cloudflared](https://developers.cloudflare.com/cloudflare-one/connections/connect-apps/install-and-setup/installation/) installed on your host PC (`winget install Cloudflare.cloudflared` on Windows or `brew install cloudflared` on macOS).
