@@ -121,6 +121,21 @@ http://192.168.x.x:3040/?token=YOUR_TOKEN
 2. Tap **Share** -> **Add to Home Screen**.
 3. Launch ZCode Touch from the home screen icon as a standalone fullscreen app.
 
+### Configuring Multi-Workspace (Multiple Project Folders)
+
+The server supports running multiple project directories simultaneously by separating paths with a semicolon `;`:
+
+```bash
+# Via the --workspace flag:
+zcode --web --host 0.0.0.0 --port 3040 --workspace "/path/to/project1;/path/to/project2"
+
+# Or via the ZCODE_SERVER_WORKSPACE environment variable:
+export ZCODE_SERVER_WORKSPACE="/path/to/project1;/path/to/project2"
+zcode --web --host 0.0.0.0 --port 3040
+```
+
+All specified folders will be listed as separate project items in the mobile sidebar drawer, allowing you to switch between different codebases without restarting the server.
+
 ---
 
 ## Security

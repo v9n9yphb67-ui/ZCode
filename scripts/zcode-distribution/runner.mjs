@@ -39,7 +39,7 @@ function parseArgs(argv) {
     port: undefined,
     token: undefined,
     tokenEnabled: undefined,
-    workspace: process.cwd(),
+    workspace: process.env.ZCODE_SERVER_WORKSPACE || process.cwd(),
   };
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -69,7 +69,9 @@ function parseArgs(argv) {
     }
     if (arg === "--workspace" || arg.startsWith("--workspace=")) {
       const parsed = readArgValue(argv, arg, index);
-      options.workspace = resolve(parsed.value);
+      options.workspace = parsed.value.includes(";")
+        ? parsed.value.split(";").map((p) => resolve(p.trim())).join(";")
+        : resolve(parsed.value);
       index = parsed.nextIndex;
       continue;
     }
@@ -175,8 +177,9 @@ async function serve(options) {
   const open = options.open ?? isLocalHost(options.host);
   const localUrl = formatUrl(options.host, port, token);
 
+  const primaryWorkspace = options.workspace.split(";")[0] || process.cwd();
   const child = spawn(process.execPath, [serverEntry], {
-    cwd: options.workspace,
+    cwd: primaryWorkspace,
     env: {
       ...process.env,
       PORT: String(port),
