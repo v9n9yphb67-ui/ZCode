@@ -9,10 +9,10 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Platforms-iOS%20Safari%20%7C%20Android%20Chrome%20%7C%20Desktop-blue?style=flat-square" alt="Platforms" />
-  <img src="https://img.shields.io/badge/Mode-Self--Hosted%20(No%20Cloud)-success?style=flat-square" alt="No Cloud" />
-  <img src="https://img.shields.io/badge/PWA-Standalone%20Ready-success?style=flat-square" alt="PWA Ready" />
-  <img src="https://img.shields.io/badge/i18n-Russian%20(100%25)-green?style=flat-square" alt="Russian 100%" />
+  <img src="https://img.shields.io/badge/Platforms-iOS%20%7C%20Android-blue?style=flat-square" alt="Platforms" />
+  <img src="https://img.shields.io/badge/PWA-Ready-success?style=flat-square" alt="PWA Ready" />
+  <img src="https://img.shields.io/badge/i18n-Russian%20(100%25)-green?style=flat-square" alt="Russian" />
+  <a href="https://t.me/AlexaLaRose" target="_blank"><img src="https://img.shields.io/badge/Telegram-@AlexaLaRose-2CA5E0?style=flat-square&logo=telegram&logoColor=white" alt="Telegram" /></a>
 </p>
 
 <p align="center">
