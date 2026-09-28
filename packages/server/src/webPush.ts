@@ -190,6 +190,10 @@ export function createWebPushService(params: {
           subscriptions: Array.isArray(parsed.subscriptions)
             ? parsed.subscriptions.filter(isValidSubscription)
             : [],
+          // Тему ntfy обязательно переносим из файла: без этого она не читалась и
+          // генерировалась заново на КАЖДОМ старте сервера — тогда подписка на телефоне
+          // (на прежнюю тему) переставала совпадать и уведомления «пропадали».
+          ...(parsed.ntfy?.topic ? { ntfy: parsed.ntfy } : {}),
         };
       }
     } catch {
