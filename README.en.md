@@ -113,6 +113,20 @@ http://192.168.x.x:3040/?token=YOUR_TOKEN
 2. Tap **Share** -> **Add to Home Screen**.
 3. Launch ZCode Touch from the home screen icon as a standalone fullscreen app.
 
+### Task-completion notifications (ntfy)
+
+Push to your phone when a background task finishes or errors — works on any network (HTTP and HTTPS), no VPN or certificates.
+
+1. On startup the server prints your personal topic to the console:
+   ```
+   [ntfy] notification topic: https://ntfy.sh/zcode-xxxxxxxxxxxxxxxx
+   ```
+2. Install the **ntfy** app ([App Store](https://apps.apple.com/app/ntfy/id1625396347) / [Google Play](https://play.google.com/store/apps/details?id=io.heckel.ntfy)).
+3. In the app, subscribe to that topic (default server is `ntfy.sh`).
+4. Done — you get a push when a task completes, even with ZCode closed.
+
+The topic is a long random name (that is its privacy) and persists across server restarts. Over HTTPS (through the tunnel), native PWA Web Push also comes to life alongside ntfy — enable it under "Settings → General → Push to this device".
+
 ### Configuring Multi-Workspace (Multiple Project Folders)
 
 The server supports running multiple project directories simultaneously by separating paths with a semicolon `;`:
