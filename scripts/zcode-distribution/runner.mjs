@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
+import { existsSync } from "node:fs";
 import { access, readFile } from "node:fs/promises";
 import { createServer } from "node:net";
 import { networkInterfaces } from "node:os";
@@ -185,14 +186,31 @@ function openBrowser(url) {
   child.unref();
 }
 
+function resolveCloudflaredCommand() {
+  if (process.platform === "win32") {
+    const candidates = [
+      join(process.env["ProgramFiles(x86)"] || "C:\\Program Files (x86)", "cloudflared", "cloudflared.exe"),
+      join(process.env["ProgramFiles"] || "C:\\Program Files", "cloudflared", "cloudflared.exe"),
+      join(process.env["LOCALAPPDATA"] || "", "Microsoft", "WinGet", "Links", "cloudflared.exe"),
+    ];
+    for (const candidate of candidates) {
+      try {
+        if (existsSync(candidate)) return candidate;
+      } catch {}
+    }
+  }
+  return "cloudflared";
+}
+
 function startCloudflareTunnel(port, token, tunnelToken) {
+  const command = resolveCloudflaredCommand();
   const args = tunnelToken
     ? ["tunnel", "run", "--token", tunnelToken]
     : ["tunnel", "--url", `http://127.0.0.1:${port}`];
 
   let tunnelProcess = null;
   try {
-    tunnelProcess = spawn("cloudflared", args, {
+    tunnelProcess = spawn(command, args, {
       stdio: ["ignore", "pipe", "pipe"],
     });
   } catch (error) {
