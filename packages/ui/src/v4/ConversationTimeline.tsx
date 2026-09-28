@@ -1109,11 +1109,17 @@ function ConversationTimelineImpl({
     // 旧 observer 只缓存高度，正文会先把 loading 槽顶下去，后续 commit 才补 scrollTop。
     // ResizeObserver 在绘制前拿到真实高度，这里仅在仍拥有 following 滚动权时同步吸底；
     // 用户已经上滚（包括 scroll event 尚未入账的竞态）则只缓存，不夺回阅读位置。
-    const observer = new ResizeObserver((entries) => {
-      const nextHeight = cacheHeight(entries[0]);
-      if (nextHeight === observedHeight) return;
-      observedHeight = nextHeight;
-
+    //
+    // 远端（Cloudflare Tunnel）会把 WebSocket 流式 delta 攒成大块下发：一个大 delta
+    // 落地后 Markdown/代码高亮在同一帧内多次异步改高（先无高亮的高块、后高亮回填、
+    // 表格/代码块闭合重排），每次都同步吸底会把阅读位置在一帧里反复上下拽（用户可见的
+    // “来回跳”）。本地 delta 细而密，几乎无感；远端 delta 粗而疏，抖动被放大。
+    // 修法：高度缓存仍逐次同步写入（virtualizer 需要最新值），但吸底动作在 rAF 里合并——
+    // 一帧内的多次测高只在末尾按最终高度吸底一次，跟随裁决用 rAF 触发时的实时指标，
+    // 不改动 following/anchor 状态机语义。
+    let stickFrame: number | null = null;
+    const flushStickToBottom = () => {
+      stickFrame = null;
       const scrollElement = scrollRef.current;
       if (!scrollElement) return;
       markLayoutScrollGuard();
@@ -1131,9 +1137,19 @@ function ConversationTimelineImpl({
       if (anchorActionAfterContentChange(following, isContentWidthChanging()) === "stickToBottom") {
         scrollToBottom();
       }
+    };
+    const observer = new ResizeObserver((entries) => {
+      const nextHeight = cacheHeight(entries[0]);
+      if (nextHeight === observedHeight) return;
+      observedHeight = nextHeight;
+      if (stickFrame !== null) window.cancelAnimationFrame(stickFrame);
+      stickFrame = window.requestAnimationFrame(flushStickToBottom);
     });
     observer.observe(element);
-    return () => observer.disconnect();
+    return () => {
+      if (stickFrame !== null) window.cancelAnimationFrame(stickFrame);
+      observer.disconnect();
+    };
   }, [
     commitFollowing,
     getActiveUserScrollIntent,
