@@ -79,7 +79,7 @@ The desktop `ZCode.exe` application and the local web server share **the exact s
 
 ## Additional Mobile Refinements
 
-* 🔔 **Background alerts via ntfy:** Server sends push alerts to your phone on task completion or failure over plain HTTP (no VPN or SSL required).
+* 🔔 **Background alerts:** Server pushes an alert to your phone on task completion or failure. On a plain-HTTP LAN the ntfy bridge handles it (no VPN or SSL); over HTTPS (through the tunnel) native PWA Web Push additionally comes to life.
 * ⌨️ **Smart keyboard focus:** The virtual keyboard opens *strictly upon tapping the input box*, not automatically on page loads or session switches.
 * 📎 **Wi-Fi attachments:** Photos and files upload seamlessly over local HTTP via a pure JS SHA-256 fallback (bypassing HTTPS WebCrypto restrictions).
 * 📁 **Multi-workspace support:** Server handles multiple project directories simultaneously (`dir1;dir2`), exposing default conversations cleanly.
@@ -155,8 +155,9 @@ Tunnel:  https://xxxx.trycloudflare.com/?token=YOUR_TOKEN
 
 ## Security
 
-* Intended for trusted local networks (home Wi-Fi) or private VPNs.
-* Do not expose port 3040 directly to the public internet without HTTPS reverse proxying.
+* Access to the server is always gated by the secret token embedded in the connection link.
+* For use away from home, use the built-in `--tunnel` mode (see [Remote Access](#remote-access-outside-home-network)): Cloudflare Tunnel opens no router ports (the connection is outbound), provides HTTPS, and forces the token on. Optionally, you can further gate access behind Cloudflare Zero Trust auth.
+* Do not expose a bare port 3040 to the public internet without HTTPS and a token — external access is meant to go through the tunnel or a TLS reverse proxy.
 
 ---
 
