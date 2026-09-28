@@ -8,8 +8,10 @@
   <a href="https://discord.gg/z9aBcQXZQ3">Discord</a>
 </p>
 <p align="center">
-  简体中文 | <a href="README.en.md">English</a> | <a href="README.web.md">Web & Mobile PWA Edition</a>
+  简体中文 | <a href="README.en.md">English</a> | <a href="README.web.md">ZCode Touch (Mobile & PWA)</a>
 </p>
+
+> 📱 **ZCode Touch (Mobile Web & PWA):** 针对手机与平板的移动端适配版，包含 Safari 零延迟输入、抽屉式触摸 UI、ntfy.sh 后台推送及完整俄语支持。详情请参见 [README.web.md](README.web.md)。
 
 ZCode 是 AI 编程工作台，提供桌面应用、浏览器界面和终端 Agent。本仓库包含客户端、后端服务、共享 UI，以及 Agent CLI 与运行时源码。
 

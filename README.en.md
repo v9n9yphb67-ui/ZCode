@@ -8,8 +8,10 @@
   <a href="https://discord.gg/z9aBcQXZQ3">Discord</a>
 </p>
 <p align="center">
-  <a href="README.md">简体中文</a> | English | <a href="README.web.md">Web & Mobile PWA Edition</a>
+  <a href="README.md">简体中文</a> | English | <a href="README.web.md">ZCode Touch (Mobile & PWA)</a>
 </p>
+
+> 📱 **ZCode Touch (Mobile Web & PWA Edition):** Looking for the mobile-adapted web edition with zero-lag Safari typing, touch drawers, ntfy.sh background alerts, and full Russian localization? Check out [README.web.md](README.web.md).
 
 ZCode is an AI coding workspace with desktop, browser, and terminal interfaces. This repository contains the clients, backend services, shared UI, and Agent CLI and runtime source code.
 
