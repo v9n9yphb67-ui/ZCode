@@ -18,10 +18,10 @@
 <p align="center">
   <a href="#why-this-project-exists">Why this project</a> •
   <a href="#key-highlights">Key Highlights</a> •
+  <a href="#seamless-desktop-handoff-pc--phone">Desktop Handoff</a> •
   <a href="#additional-mobile-refinements">All Refinements</a> •
   <a href="#quickstart">Quickstart</a> •
-  <a href="#security">Security</a> •
-  <a href="#license">License</a>
+  <a href="#security">Security</a>
 </p>
 
 ---
@@ -36,10 +36,12 @@
   * [3. Substantial Speed & Navigation Optimizations](#3-substantial-speed--navigation-optimizations)
   * [4. Informative Desktop UI on Mobile Screens](#4-informative-desktop-ui-on-mobile-screens)
   * [5. 100% Russian Localization](#5-100-russian-localization)
+* [Seamless Desktop Handoff (PC ↔ Phone)](#seamless-desktop-handoff-pc--phone)
 * [Additional Mobile Refinements](#additional-mobile-refinements)
 * [Quickstart](#quickstart)
   * [One-Line Install](#one-line-install-recommended)
   * [Add to Home Screen (PWA)](#add-to-home-screen-pwa)
+  * [Configuring Multi-Workspace](#configuring-multi-workspace-multiple-project-folders)
 * [Security](#security)
 * [License](#license)
 
@@ -82,6 +84,20 @@ Unlike watered-down mobile web views, full desktop capabilities are preserved:
 ### 5. 100% Russian Localization
 * Full interface translation (5,472 strings) with standardized engineering terminology.
 * Instant language toggle ("Ру") in the sidebar footer.
+
+---
+
+## Seamless Desktop Handoff (PC ↔ Phone)
+
+The desktop `ZCode.exe` application and the local web server share **the exact same system data directory**: `~/.zcode` (on Windows: `C:\Users\<Username>\.zcode`).
+
+* **If you already have ZCode installed on your PC:**  
+  No migration, file copying, or re-configuration is needed. The web server automatically reads your existing models, API keys, memory, plugins, and session history.
+* **Continuous Workflow ("Relay" Scenario):**  
+  Code during the day at your desk on your PC. Step away in the evening, open ZCode Touch on your smartphone, and continue the exact same conversation. The next morning, return to your PC — all overnight agent responses, file edits, and git commits are already there in the desktop app.
+* **If you are installing from scratch:**
+  * *Web & Mobile PWA only:* The desktop `.exe` is not required — the `install.sh` package provides complete standalone functionality. On PC, open it in any browser or install it as a borderless Desktop PWA (via Chrome/Edge).
+  * *With native ZCode.exe desktop app:* Install the official desktop application from the upstream vendor or build it from source (`pnpm dev:desktop`). The shared data directory is connected automatically.
 
 ---
 
