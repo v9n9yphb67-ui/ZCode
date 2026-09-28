@@ -40,8 +40,12 @@ interface WebPushStore {
   ntfy?: { topic: string; server: string };
 }
 
-/** VAPID subject должен быть mailto:/https: — значение непринципиально для self-host. */
-const VAPID_SUBJECT = "mailto:zcode-web@zcode.local";
+/**
+ * VAPID subject должен быть валидным mailto:/https: — Apple Web Push (web.push.apple.com)
+ * строго проверяет его и отвергает JWT с невалидным доменом ошибкой 403 BadJwtToken
+ * (например `.local` TLD не проходит). Используем https-URL проекта — Apple его принимает.
+ */
+const VAPID_SUBJECT = "https://github.com/zcode-touch/zcode";
 
 export interface WebPushService {
   getVapidPublicKey(): string | null;
