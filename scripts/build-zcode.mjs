@@ -226,7 +226,7 @@ async function createTarball({ packageParent, releaseDir, tarballName }) {
   await rm(tarball, {
     force: true,
   });
-  run("tar", ["-czf", tarball, "-C", packageParent, packageDirName]);
+  run("tar", ["--force-local", "-czf", tarball, "-C", packageParent, packageDirName]);
   return tarball;
 }
 

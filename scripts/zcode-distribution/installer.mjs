@@ -29,8 +29,12 @@ cleanup() {
 }
 trap cleanup EXIT
 
-ARCHIVE="$TMP_DIR/$TARBALL"
-curl -fL "\${BASE_URL%/}/releases/$VERSION/$TARBALL" -o "$ARCHIVE"
+ARCHIVE="\$TMP_DIR/\$TARBALL"
+if printf '%s' "\$BASE_URL" | grep -q "/releases/download/"; then
+  curl -fL "\${BASE_URL%/}/\$TARBALL" -o "\$ARCHIVE"
+else
+  curl -fL "\${BASE_URL%/}/releases/\$VERSION/\$TARBALL" -o "\$ARCHIVE"
+fi
 
 mkdir -p "$INSTALL_DIR/releases" "$BIN_DIR"
 TARGET="$INSTALL_DIR/releases/$VERSION"
