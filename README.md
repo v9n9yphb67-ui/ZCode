@@ -1,225 +1,155 @@
-# ZCode
+# ZCode Touch (Mobile Web & PWA)
 
-<div align="center">
-  <img src="public/logo/icons/1024x1024.png" alt="ZCode" width="128" height="128" />
-</div>
 <p align="center">
-  <a href="https://applink.feishu.cn/client/chat/chatter/add_by_link?link_token=47ag983c-8fcb-4d6d-814b-5395193a712c&amp;qr_code=true">飞书社群</a> ·
-  <a href="https://discord.gg/z9aBcQXZQ3">Discord</a>
-</p>
-<p align="center">
-  简体中文 | <a href="README.en.md">English</a> | <a href="README.web.md">ZCode Touch (Mobile & PWA)</a>
+  <strong>Адаптация ZCode для смартфонов и планшетов: быстрый мобильный ввод, нативный PWA-интерфейс, фоновые уведомления без VPN и полная русская локализация.</strong>
 </p>
 
-> 📱 **ZCode Touch (Mobile Web & PWA):** 针对手机与平板的移动端适配版，包含 Safari 零延迟输入、抽屉式触摸 UI、ntfy.sh 后台推送及完整俄语支持。详情请参见 [README.web.md](README.web.md)。
+<p align="center">
+  <strong>Русский</strong> • <a href="README.en.md">English</a> • <a href="README.upstream-zh.md">Оригинальный README (中文)</a> • <a href="README.upstream-en.md">Original Upstream (EN)</a>
+</p>
 
-ZCode 是 AI 编程工作台，提供桌面应用、浏览器界面和终端 Agent。本仓库包含客户端、后端服务、共享 UI，以及 Agent CLI 与运行时源码。
+<p align="center">
+  <a href="#почему-создан-этот-форк-проблемы-оригинала">Почему этот форк</a> •
+  <a href="#сравнение-с-оригинальным-веб-клиентом">Сравнение</a> •
+  <a href="#ключевые-улучшения-по-важности">Что изменилось</a> •
+  <a href="#быстрый-старт">Быстрый старт</a> •
+  <a href="#безопасность-и-дисклеймер">Безопасность</a> •
+  <a href="#лицензия">Лицензия</a>
+</p>
 
-| 入口                 | 用途                                                           | 开发命令                       |
-| -------------------- | -------------------------------------------------------------- | ------------------------------ |
-| Desktop              | Electron 桌面应用                                              | `pnpm dev:desktop`             |
-| Web / ZCode 命令行版 | 终端与浏览器工作台；将 TUI、Web、后端和 Agent 组装为独立运行包 | `pnpm dev:web`                 |
-| Agent CLI            | 在终端中使用 `zcode`，也为 Desktop 和 Web 提供 Agent 运行时    | `pnpm --filter @zcode/cli dev` |
+<p align="center">
+  <img src="https://img.shields.io/badge/Platforms-iOS%20Safari%20%7C%20Android%20Chrome%20%7C%20Desktop-blue?style=flat-square" alt="Platforms" />
+  <img src="https://img.shields.io/badge/PWA-Standalone%20Ready-success?style=flat-square" alt="PWA Ready" />
+  <img src="https://img.shields.io/badge/License-Apache%202.0-orange?style=flat-square" alt="License" />
+  <img src="https://img.shields.io/badge/i18n-Русский%20(100%25)-green?style=flat-square" alt="Russian 100%" />
+</p>
 
-## 初始化
+---
 
-准备 Git、Node.js **24.14.0** 和 pnpm **10.33.2**，版本以 [mise.toml](mise.toml) 为准。以下开发和打包命令均在仓库根目录执行。
+## Почему создан этот форк (Проблемы оригинала)
 
-```bash
-pnpm bootstrap
-```
+Оригинальный веб-клиент ZCode (`zcode --web`) задумывался как прямая трансляция десктопного Electron-приложения в браузер на ПК. При попытке открыть его со смартфона в домашней сети или в дороге разработка превращалась в мучение:
 
-`pnpm bootstrap` 安装 workspace 依赖、准备桌面本地运行资源，再执行 `build:bootstrap`。
+1. **Невыносимые лаги клавиатуры в Safari:** на каждый введённый или стёртый символ оригинальный код синхронно перерендеривал дерево всей страницы (4000+ строк React-компонентов) и заново сериализовал Markdown AST. При попытке исправить опечатку в слове мобильный WebKit зависал на 1–2 секунды.
+2. **Агрессивный авто-фокус клавиатуры:** десктопный код вызывал `focus()` при каждом открытии приложения, создании задачи и переходе между чатами. Экранная клавиатура на iOS мгновенно вылетала на пол-экрана, перекрывая диалог.
+3. **Непригодная верстка на тач-экранах:** интерфейс не имел мобильных шторок. Боковые панели делили мобильный экран пополам (50/50), сжимая область сообщений в нечитаемую полоску шириной 100 пикселей.
+4. **«Резиновый» скролл iOS и самопроизвольный зум:** попытка проскроллить чат утягивала всё окно браузера за пределы экрана, а тап в поле ввода вызывал скачок масштаба страницы.
+5. **Ошибки при работе по локальному HTTP:** прикрепление файлов намертво ломалось из-за жесткого требования WebCrypto `crypto.subtle` (которого нет в незащищенном LAN HTTP). Буфер обмена также не работал.
+6. **Полная изоляция от фоновых задач:** запустив сложный прогон агента, нужно было держать экран телефона включенным — уведомлений о завершении или падении задач не было.
+7. **Потеря сессий и единственный проект:** сервер обслуживал строго один путь, а iOS при сворачивании выгружала вкладку из памяти, выбрасывая в пустой черновик.
 
-Agent CLI 与运行时源码位于 [apps/zcode-cli/](apps/zcode-cli/)，作为普通目录随本仓库一起克隆，无需单独拉取或初始化 Git submodule。
+**Цель этого форка:** превратить ZCode в полноценный, карманный терминал управления ИИ-агентами, с которого так же удобно кодить с дивана по домашнему Wi-Fi, как и за рабочим столом.
 
-根据需要选择其他初始化或构建入口：
+---
 
-| 命令                           | 用途                                                              |
-| ------------------------------ | ----------------------------------------------------------------- |
-| `pnpm install`                 | 安装依赖                                                          |
-| `pnpm prepare:desktop-runtime` | 准备桌面运行资源，默认包含远程资源准备                            |
-| `pnpm prepare:remote-assets`   | 单独准备远程运行资源                                              |
-| `pnpm bootstrap:with-remote`   | 初始化依赖、本地与远程资源，并串行构建相关包；跳过桌面应用 bundle |
-| `pnpm build`                   | 递归执行各 workspace 包的构建脚本，包括包内的资源准备步骤         |
+## Сравнение с оригинальным веб-клиентом
 
-默认 `bootstrap` 跳过远程资源准备，适合本地桌面开发。使用远程工作区或验证远程发行资源时，再运行对应准备命令。
+| Возможность / Сценарий | Оригинальный ZCode Web | ZCode Touch (Этот форк) |
+| :--- | :--- | :--- |
+| **Ввод текста на iPhone** | Фризы и лаги при наборе и стирании символов | ⚡ **Мгновенный ввод без задержек** (дебаунс черновиков, fast-path) |
+| **Экранная клавиатура** | Автоматически открывается при каждом входе | 📱 **Открывается только по тапу** в поле ввода |
+| **Раскладка на телефоне** | Панели сжимают чат 50/50 в узкую щель | 🎨 **Адаптивные шторки-оверлеи** (Drawers) с backdrop и кнопками |
+| **Скролл на iOS** | Сползание всего окна, скачки зума | 🧈 **Momentum-скролл**, жесткая фиксация viewport (`overscroll: none`) |
+| **Уведомления** | Только если вкладка открыта на экране | 🔔 **ntfy.sh push-уведомления** при завершении/ошибке задачи (без VPN) |
+| **Вложения по HTTP (LAN)** | Ошибка `checksumUnavailable` | 📎 **Чистый SHA-256 fallback**, загрузка фото работает по Wi-Fi |
+| **Язык интерфейса** | Английский / Китайский | 🌐 **100% Русский язык** (5400+ ключей) + переключатель «Ру» |
+| **Количество проектов** | 1 воркспейс | 📁 **Multi-workspace** (`dir1;dir2`), раздел «Задачи» как проект |
+| **Выгрузка PWA из памяти** | Сброс на первичный проект/черновик | 💾 **Автоматическое восстановление** последней открытой беседы |
 
-## 开发与运行
+---
 
-### 桌面版
+## Ключевые улучшения (по важности)
 
-```bash
-pnpm dev:desktop
+### 1. ⚡ Устранение задержек ввода и контроль клавиатуры (Zero-Lag Mobile Composer)
+* **Дебаунс сохранения черновиков:** сохранение текста черновика отвязано от покадрового рендера (дебаунс 350 мс), родительский контейнер больше не перерисовывается на каждый клик по клавише.
+* **Быстрый траверс событий ввода:** устранён синхронный обход всего DOM-дерева на каждое событие `beforeinput` в WebKit.
+* **Smart Autofocus:** определяются coarse-touch устройства с экраном ≤767px; автоматический `focus()` отключается, клавиатура больше не закрывает обзор при навигации.
+* **Кнопки под сообщениями:** кнопки копирования и редактирования видны на тач-устройствах без необходимости наведения курсора (`@media(hover:none)`).
 
-# 使用测试环境
-pnpm dev:desktop:test
-```
+### 2. 📱 Полноценный мобильный UI и нативный PWA
+* **Плавающие шторки (Drawers):** сайдбар задач и правая панель просмотра кода/диффов открываются в виде модальных шторок с аппаратным GPU-выездом (`transform`), затемнением фона и кнопками скрытия.
+* **Ликвидация «резинки» iOS:** на уровне `html, body` заданы `overflow: hidden`, `overscroll-behavior: none` и `touch-action: manipulation`. Скроллится только лента сообщений.
+* **Фикс зума:** размер шрифта полей ввода зафиксирован на `16px !important` для исключения масштабирования Safari при фокусе.
+* **Аппаратный momentum-скролл:** плавный скроллинг длинных сессий через `-webkit-overflow-scrolling: touch` и изоляцию стилей строк (`will-change: transform`, `contain: layout style`).
+* **Детали ошибок инструментов:** открываются по нажатию (Popover) вместо десктопного hover-тултипа.
 
-`pnpm dev:desktop` 默认等同于 `pnpm dev:desktop:prod`，使用生产服务配置。启动脚本会准备本地运行资源、构建桌面 Agent，再启动 Electron 和源码监听。
+### 3. 🔔 Фоновые уведомления через ntfy (Без VPN и HTTPS-сертификатов)
+* Сервер автоматически отправляет POST-запрос на `https://ntfy.sh/<секретная_тема>` при завершении или ошибке фоновой задачи.
+* Работает по чистому локальному HTTP: достаточно установить бесплатное приложение **ntfy** на iPhone или Android и подписаться на тему, сгенерированную сервером.
+* Звуковое и тактильное оповещение на телефон поступает даже при заблокированном экране и выгруженном браузере.
 
-需要独立开发数据目录时，可设置 `ZCODE_DATA_BASE_DIR`。例如在 macOS / Linux 中：
+### 4. 🌐 Полная русская локализация
+* 5 472 переведенных термина интерфейса с единым глоссарием разработки (Git, коммиты, диффы, терминалы, MCP, инструменты).
+* Быстрый переключатель языка («Ру») прямо в подвале сайдбара рядом с настройками.
+* Поддержка `ru-RU` на уровне схемы сервера (`@zcode/shared`) исключает ошибки валидации настроек.
 
-```bash
-ZCODE_DATA_BASE_DIR="$HOME/.zcode-dev-home" pnpm dev:desktop:test
-```
+### 5. 📁 Мульти-проектность и живучесть сессий
+* Переменная `ZCODE_SERVER_WORKSPACE` принимает несколько путей через `;`.
+* Общий воркспейс бесед («Задачи») рендерится полноценным рядом проектов.
+* Восстановление сессии (`restoreOnFreshLoad`): при повторном открытии PWA после выгрузки операционной системой фокус возвращается в ваш последний активный чат.
+* Нормализация путей `realpathSync.native` защищает сервер от крашей libuv `fs-event` при работе с короткими путями Windows (8.3).
 
-### 远程功能（SSH/WSL）
+### 6. 🔌 Стабильные MCP-инструменты и полифиллы для LAN
+* Исправлена гонка старта медленных stdio MCP-серверов: инструменты дорегистрируются на последующих ходах (`collectLateArrivals`).
+* Подключен RPC-канал `mcpSyncService` к веб-платформе для настройки серверов из браузера.
+* Реализован чистый JS SHA-256 fallback для прикрепления изображений в локальной сети без HTTPS.
+* Добавлен полифилл буфера обмена для незащищенных HTTP-соединений.
 
-先执行 `pnpm bootstrap:with-remote` 准备远程资源（mock-cdn），再 `pnpm dev:desktop`；连接远程项目时资源选择「本地下载后上传」。开发态资源取自本地 `packages/desktop/mock-cdn` 和本地构建产物，经 SFTP 上传到远程，不访问 CDN。
+---
 
-### Web 开发
+## Быстрый старт
 
-修改 Web 或后端源码时，使用开发模式：
+### Вариант 1. Установка готового дистрибутива (Рекомендуется)
 
-```bash
-pnpm dev:web
-
-# 指定后端工作区（macOS / Linux）
-ZCODE_SERVER_WORKSPACE=/path/to/project pnpm dev:web
-```
-
-该命令同时启动 Web 开发服务器（默认 `http://localhost:5173`）和后端（默认 `http://localhost:3030`）；浏览器访问前者。`/ws` 和一般 `/api` 请求代理到本地后端，`/api/v1/oauth/token` 单独代理到当前配置的产品服务。
-
-Agent 源码修改后，执行 `pnpm --filter @zcode/cli... build` 并重启服务。需要验证完整发行包时，按下方“ZCode 命令行版”打包章节解压运行。
-
-### ZCode 命令行版
-
-命令行发行包包含 TUI、Web 和 Agent，统一使用 `zcode` 启动：无参数进入 TUI；第一个参数为 `--web` 时启动 Web；其他参数交给现有 Agent CLI 处理。两种模式都在本机运行，无需 Electron。
-
-```bash
-# 默认进入终端交互界面
-zcode
-
-# 启动 Web 界面
-zcode --web
-
-# 指定项目和端口，不自动打开浏览器
-zcode --web --workspace /path/to/project --port 3030 --no-open
-
-# 查看 CLI 或 Web 参数
-zcode --help
-zcode --web --help
-```
-
-Web 模式默认工作目录为当前目录，监听 `127.0.0.1`，默认不启用访问令牌，自动选择空闲端口并打开浏览器。访问终端输出的地址，按 `Ctrl+C` 停止服务。局域网访问可使用 `--host 0.0.0.0`；监听非本机地址时默认生成访问令牌，使用终端输出的带令牌链接。可通过 `--token` 指定令牌或 `--no-token` 关闭令牌认证。
-
-直接启动通用 Web 服务的 HTTP 入口时，通过 `ZCODE_SERVER_AUTH_TOKEN` 配置 API／WebSocket 认证；通过程序接口创建服务时，使用 `authToken` 选项。
-
-构建方式见下方打包章节。`pnpm build:zcode` 只生成发行包，不会替换 `PATH` 中已有的 `zcode`。如果命令仍指向旧安装或其他源码目录，macOS / Linux 可用 `command -v zcode` 检查，Windows 可用 `where.exe zcode` 检查。
-
-### CLI 源码开发
-
-直接开发 TUI 或 Agent 时，运行源码入口：
+Установка одной командой на машину, где запущен Node.js (Linux, macOS, WSL, Git Bash):
 
 ```bash
-pnpm --filter @zcode/cli dev --help
-pnpm --filter @zcode/cli dev
-
-# 构建 CLI 及其 workspace 依赖
-pnpm --filter @zcode/cli... build
-node apps/zcode-cli/packages/cli/dist/zcode.cjs --help
+curl -fsSL https://github.com/v9n9yphb67-ui/ZCode/releases/download/v3.14.0-web/install.sh | sh
 ```
 
-这个入口直接运行 Agent CLI，不经过发行包的 `--web` 分流。开发 Web 用 `pnpm dev:web`；验证统一的 `zcode` 命令，用下方解压后的 `bin/zcode.mjs`。
+Запуск сервера на всю локальную сеть:
+```bash
+zcode --web --host 0.0.0.0 --port 3040
+```
 
-## 配置
+Сервер выведет адрес для подключения:
+```
+http://192.168.x.x:3040/?token=YOUR_TOKEN
+```
 
-根目录 [.env.example](.env.example) 提供服务地址与构建配置示例，可按需复制到 `.env`，本地覆盖放入 `.env.local`。Desktop 的开发环境通过 `dev:desktop:test` / `dev:desktop:prod` 选择。
-
-| 配置                                 | 用途                                             |
-| ------------------------------------ | ------------------------------------------------ |
-| `ZCODE_DATA_BASE_DIR`                | 应用数据基目录，数据写入其下的 `.zcode/`         |
-| `ZCODE_SERVER_WORKSPACE`             | Web 后端的工作区路径                             |
-| `ZCODE_BUILTIN_PROVIDER_CONFIG_FILE` | 本地 Provider 配置文件路径；未设置时使用内置配置 |
-| `ZCODE_DIST_BASE_URL`                | 命令行安装脚本使用的下载根地址                   |
-
-运行时变量可在启动命令的环境中显式设置。随客户端发布的默认配置见 [config/README.md](config/README.md)。
-
-## 打包
-
-第三方声明生成、发行校验流程及声明在发行物中的位置见 [third-party/README.md](third-party/README.md)。
-
-### 桌面版
+### Вариант 2. Запуск из исходников репозитория
 
 ```bash
-pnpm bundle:desktop
+# Клонирование форка
+git clone -b iphone-web https://github.com/v9n9yphb67-ui/ZCode.git
+cd ZCode
 
-# 指定目标平台与 CPU 架构
-pnpm bundle:desktop -- --os win --arch x64
+# Установка зависимостей и сборка
+pnpm install
+pnpm --filter @zcode/server build
+pnpm --filter @zcode/web build
 
-pnpm bundle:desktop -- --help
+# Запуск веб-сервера
+PORT=3040 ZCODE_SERVER_HOST=0.0.0.0 node packages/server/dist/entry-http.js
 ```
 
-默认目标为 macOS arm64，默认输出目录为 `packages/desktop/dist/`。`--os` 支持 `mac`、`win`、`linux`，`--arch` 支持 `x64`、`arm64`；实际打包与签名需要目标平台对应的工具和配置。
+### Добавление на домашний экран (PWA)
 
-安装：双击打开产物 DMG，将 ZCode 拖入"应用程序"。本地构建未签名，首次打开若被 macOS 拦截，执行：
+1. Откройте выданную ссылку с токеном в **Safari на iPhone** (или Chrome на Android).
+2. Нажмите иконку **Поделиться** (Share) -> **На экран «Домой»** (Add to Home Screen).
+3. Запустите приложение с домашнего экрана — оно откроется в полноэкранном режиме без адресной строки браузера.
 
-```bash
-sudo xattr -rd com.apple.quarantine /Applications/ZCode.app
-```
+---
 
-### ZCode 命令行版
+## Безопасность и дисклеймер
 
-构建入口为 `pnpm build:zcode`。脚本会依次构建 CLI/TUI、后端和 Web，收集 TUI 的原生库、worker 与运行时依赖，再组装发行包；运行发行包仍需要 Node.js，版本以 `mise.toml` 为准。
+* **Только доверенная сеть (LAN):** данный веб-сервер предназначен для запуска в защищенной домашней сети Wi-Fi или через частный VPN (WireGuard, OpenVPN).
+* **Не открывайте порт 3040 напрямую в публичный интернет** без HTTPS-шифрования и обратного прокси-сервера (Nginx, Caddy, Cloudflare Tunnel).
+* Токен авторизации сохраняется в `localStorage` вашего PWA. Регулярно обновляйте токен при смене сети.
 
-打包前必须设置下载根地址 `ZCODE_DIST_BASE_URL`（可放在 `.env`、`.env.local` 或环境变量中），也可以通过 `--base-url` 传入。以下地址是占位示例，发布时替换为实际托管地址：
+---
 
-```bash
-pnpm build:zcode --base-url https://downloads.example.com/zcode/
+## Лицензия
 
-# 已配置 ZCODE_DIST_BASE_URL 时
-pnpm build:zcode
-
-# 仅重新组包，复用已有的 Agent、后端和 Web 构建产物
-pnpm build:zcode --skip-build
-
-# 查看版本、输出目录等可选参数
-pnpm build:zcode --help
-```
-
-默认版本取根目录 `package.json`，输出目录为 `dist/zcode/`：
-
-- `releases/<version>/zcode-<version>.tar.gz`：运行包。
-- `releases/<version>/sha256.txt`：校验摘要。
-- `latest.json`、`install.sh`：版本索引和安装脚本。
-
-完整目录可上传到配置的下载根地址。安装脚本从该地址下载运行包，默认安装到 `~/.zcode/runtime`，并在 `~/.local/bin` 创建 `zcode` 命令。安装目录可通过 `ZCODE_DIST_HOME` 修改，命令目录可通过 `ZCODE_DIST_BIN_DIR` 修改。
-
-旧 Lite 用户需要改用上述构建命令、环境变量和新的安装脚本。新安装不会删除旧 Lite 目录，也不会迁移或删除已有会话数据。
-
-本地调试打包产物时，可直接解压运行，无需上传或安装：
-
-```bash
-zcode_version=$(node -p "require('./dist/zcode/latest.json').version")
-mkdir -p dist/zcode/debug
-tar -xzf "dist/zcode/releases/$zcode_version/zcode-$zcode_version.tar.gz" \
-  -C dist/zcode/debug
-# 默认启动 TUI
-node dist/zcode/debug/zcode/bin/zcode.mjs
-
-# 启动 Web
-node dist/zcode/debug/zcode/bin/zcode.mjs --web \
-  --workspace "$PWD" --port 3030 --no-open
-```
-
-浏览器打开 `http://127.0.0.1:3030`，即可验证同一后端服务托管 Web 页面和 Agent 的完整链路。该端口需要空闲；如正在运行 `pnpm dev:web`，可改用其他 `--port`。
-
-## 仓库结构
-
-| 目录                                                 | 职责                                       |
-| ---------------------------------------------------- | ------------------------------------------ |
-| `packages/desktop`                                   | Electron Main、Host、Renderer 与桌面打包   |
-| `packages/web`                                       | Web 客户端                                 |
-| `packages/server`                                    | HTTP / WebSocket 服务与远程连接            |
-| `packages/zcode-server-cli`                          | 独立 Server 启动与进程管理                 |
-| `packages/ui`                                        | 共享 React 组件、hooks 与 Zustand 状态     |
-| `packages/services`                                  | 业务服务与持久化                           |
-| `packages/shared`、`packages/rpc`、`packages/client` | 共享协议和类型、RPC 框架、Agent 客户端 SDK |
-| `packages/provider`、`packages/provider-node`        | Provider 公共能力与 Node 实现              |
-| `apps/zcode-cli`                                     | Agent CLI、TUI、运行时与工具               |
-| `scripts`、`config`、`third-party`                   | 构建维护脚本、内置配置与第三方声明材料     |
-
-## 项目声明
-
-功能与优惠范围、维护规则、执行与数据风险，以及许可和第三方版权说明，详见 [NOTICE.md](NOTICE.md)。
+Оригинальный проект ZCode разработан сообществом [zai-org/ZCode](https://github.com/zai-org/ZCode) и распространяется под лицензией **Apache License 2.0**.
+Все лицензионные соглашения (`LICENSE`), уведомления (`NOTICE.md`) и авторские права полностью сохранены.

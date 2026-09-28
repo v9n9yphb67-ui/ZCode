@@ -1,215 +1,152 @@
-# ZCode
+# ZCode Touch (Mobile Web & PWA)
 
-<div align="center">
-  <img src="public/logo/icons/1024x1024.png" alt="ZCode" width="128" height="128" />
-</div>
 <p align="center">
-  <a href="https://applink.feishu.cn/client/chat/chatter/add_by_link?link_token=47ag983c-8fcb-4d6d-814b-5395193a712c&amp;qr_code=true">Feishu community</a> ·
-  <a href="https://discord.gg/z9aBcQXZQ3">Discord</a>
-</p>
-<p align="center">
-  <a href="README.md">简体中文</a> | English | <a href="README.web.md">ZCode Touch (Mobile & PWA)</a>
+  <strong>ZCode adapted for smartphones and tablets: lag-free touch typing, native PWA layout, background notifications without VPN, and full Russian localization.</strong>
 </p>
 
-> 📱 **ZCode Touch (Mobile Web & PWA Edition):** Looking for the mobile-adapted web edition with zero-lag Safari typing, touch drawers, ntfy.sh background alerts, and full Russian localization? Check out [README.web.md](README.web.md).
+<p align="center">
+  <a href="README.md">Русский</a> • <strong>English</strong> • <a href="README.upstream-zh.md">Original README (中文)</a> • <a href="README.upstream-en.md">Original Upstream (EN)</a>
+</p>
 
-ZCode is an AI coding workspace with desktop, browser, and terminal interfaces. This repository contains the clients, backend services, shared UI, and Agent CLI and runtime source code.
+<p align="center">
+  <a href="#why-this-fork-the-problem-with-original-web-app">Why this fork</a> •
+  <a href="#comparison-with-original-web-app">Comparison</a> •
+  <a href="#key-improvements-by-priority">Key Features</a> •
+  <a href="#quickstart">Quickstart</a> •
+  <a href="#security--disclaimer">Security</a> •
+  <a href="#license">License</a>
+</p>
 
-| Interface                    | Purpose                                                                                   | Development command            |
-| ---------------------------- | ----------------------------------------------------------------------------------------- | ------------------------------ |
-| Desktop                      | Electron desktop application                                                              | `pnpm dev:desktop`             |
-| Web / ZCode CLI distribution | Terminal and browser workspace; packages the TUI, Web client, backend, and Agent together | `pnpm dev:web`                 |
-| Agent CLI                    | The `zcode` terminal interface, which also provides the Agent runtime for Desktop and Web | `pnpm --filter @zcode/cli dev` |
+<p align="center">
+  <img src="https://img.shields.io/badge/Platforms-iOS%20Safari%20%7C%20Android%20Chrome%20%7C%20Desktop-blue?style=flat-square" alt="Platforms" />
+  <img src="https://img.shields.io/badge/PWA-Standalone%20Ready-success?style=flat-square" alt="PWA Ready" />
+  <img src="https://img.shields.io/badge/License-Apache%202.0-orange?style=flat-square" alt="License" />
+  <img src="https://img.shields.io/badge/i18n-Russian%20(100%25)-green?style=flat-square" alt="Russian 100%" />
+</p>
 
-## Setup
+---
 
-Install Git, Node.js **24.14.0**, and pnpm **10.33.2**. [mise.toml](mise.toml) is the source of truth for tool versions. Run all development and packaging commands below from the repository root.
+## Why this fork (The Problem with Original Web App)
 
-```bash
-pnpm bootstrap
-```
+The original ZCode web client (`zcode --web`) was designed as a direct translation of the desktop Electron app into a desktop browser. Trying to use it from a smartphone over local Wi-Fi or on the go was frustrating:
 
-`pnpm bootstrap` installs workspace dependencies, prepares local desktop runtime assets, and runs `build:bootstrap`.
+1. **Severe input lags in mobile Safari:** On every keystroke or backspace, the original code synchronously re-rendered the entire application tree (4,000+ lines of React components) and re-serialized Markdown AST. Correcting a partially typed word caused WebKit to freeze for 1–2 seconds.
+2. **Aggressive virtual keyboard autofocus:** Desktop code triggered `focus()` on every app mount, new task creation, and session switch. On iOS, the virtual keyboard forcibly popped up and obstructed half the conversation.
+3. **Desktop-locked layout on touch screens:** Lacking mobile drawers, sidebars squeezed the conversation pane 50/50, collapsing the chat area down to an unreadable 100px sliver.
+4. **iOS rubber-banding and random page zoom:** Scrolling the message stream dragged the entire Safari window off-screen, while tapping inputs triggered unwanted viewport zooming.
+5. **Broken media attachments over local HTTP:** Uploading images failed with `checksumUnavailable` because desktop code demanded WebCrypto `crypto.subtle` (unavailable on non-secure LAN HTTP). Clipboard copying was similarly broken.
+6. **No mobile background notifications:** Running long agent tasks forced users to keep the phone screen awake, with zero alerts when tasks finished or failed.
+7. **Session loss on mobile memory reclaim:** The server only accepted a single workspace path, and iOS frequently wiped background tabs, throwing users back into empty drafts.
 
-The Agent CLI and runtime source code lives in [apps/zcode-cli/](apps/zcode-cli/) as a regular directory included when you clone this repository. No separate checkout or Git submodule initialization is required.
+**The goal of ZCode Touch:** Transform ZCode into a first-class, pocket-sized AI agent workstation that feels as fast and natural from your phone as it does at your desk.
 
-Additional setup and build commands:
+---
 
-| Command                        | Purpose                                                                                                                             |
-| ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------- |
-| `pnpm install`                 | Install dependencies                                                                                                                |
-| `pnpm prepare:desktop-runtime` | Prepare desktop runtime assets, including remote assets by default                                                                  |
-| `pnpm prepare:remote-assets`   | Prepare remote runtime assets separately                                                                                            |
-| `pnpm bootstrap:with-remote`   | Set up dependencies and local and remote assets, then build the relevant packages sequentially; skip the desktop application bundle |
-| `pnpm build`                   | Recursively run each workspace package's build script, including its asset preparation steps                                        |
+## Comparison with Original Web App
 
-The default `bootstrap` skips remote asset preparation and is suitable for local desktop development. Run the corresponding preparation command when working with remote workspaces or validating remote distribution assets.
+| Feature / Scenario | Original ZCode Web | ZCode Touch (This Fork) |
+| :--- | :--- | :--- |
+| **iPhone typing** | Freezes and stutter on typing and backspacing | ⚡ **Instant zero-lag typing** (debounced drafts, input fast-path) |
+| **Virtual keyboard** | Forcibly pops up on every navigation | 📱 **Opens only on explicit tap** into the composer input |
+| **Mobile layout** | Panes crush the chat 50/50 into a slit | 🎨 **Smooth drawer overlays** with backdrops & close buttons |
+| **iOS scrolling** | Screen rubber-banding & unwanted zoom | 🧈 **Momentum scrolling**, locked viewport (`overscroll: none`) |
+| **Background alerts** | Only works while tab stays open | 🔔 **ntfy.sh push notifications** on completion/error (no VPN) |
+| **Attachments over LAN HTTP** | Fails with `checksumUnavailable` | 📎 **Pure JS SHA-256 fallback**, photo uploads work over Wi-Fi |
+| **Languages** | English / Chinese | 🌐 **100% Russian localization** (5,400+ keys) + toggle button |
+| **Workspaces** | Single workspace only | 📁 **Multi-workspace** (`dir1;dir2`), conversations pane enabled |
+| **PWA memory discard** | Resets to primary project or blank draft | 💾 **Automatic restoration** of your last active session |
 
-## Development and Usage
+---
 
-### Desktop
+## Key Improvements (By Priority)
 
-```bash
-pnpm dev:desktop
+### 1. ⚡ Zero-Lag Mobile Composer & Smart Keyboard Focus
+* **Debounced Draft Persistence:** Draft updates are debounced (350ms), decoupling typing from heavy parent re-renders.
+* **Input Fast-Path:** Eliminated synchronous full DOM tree traversal on every `beforeinput` event in WebKit.
+* **Smart Autofocus:** Coarse-touch screens (≤767px) skip intrusive autofocus, keeping the keyboard closed until you explicitly tap the field.
+* **Touch Action Buttons:** Copy and edit message actions remain visible on touch devices without needing mouse hover (`@media(hover:none)`).
 
-# Use the test environment
-pnpm dev:desktop:test
-```
+### 2. 📱 Native Mobile Touch UI & Standalone PWA
+* **Floating Drawers:** Left sidebar and right code/preview inspector slide in as GPU-accelerated touch drawers (`transform`) with background dimming and close buttons.
+* **Fixed iOS Rubber-Banding:** Viewport locked at the `html, body` level (`overflow: hidden`, `overscroll-behavior: none`, `touch-action: manipulation`).
+* **Zoom Prevention:** Composer font size locked to `16px !important` to prevent Safari auto-zoom on focus.
+* **Hardware Momentum Scrolling:** Smooth long session scrolling via `-webkit-overflow-scrolling: touch` and CSS style isolation (`will-change: transform`, `contain: layout style`).
+* **Tool Call Error Details:** Open via tap Popover rather than desktop hover tooltips.
 
-`pnpm dev:desktop` defaults to `pnpm dev:desktop:prod` and uses production service configuration. The startup script prepares local runtime assets, builds the desktop Agent, then starts Electron and source watchers.
+### 3. 🔔 Background Alerts via ntfy (Zero-Config over Local HTTP)
+* Server automatically sends a POST request to `https://ntfy.sh/<secret_topic>` upon task completion or failure.
+* Works over plain HTTP LAN: install the free **ntfy** app on iOS / Android and subscribe to your server's topic.
+* Receive push alerts and sounds even when your phone is locked and the browser is closed.
 
-Set `ZCODE_DATA_BASE_DIR` to use a separate development data directory. For example, on macOS / Linux:
+### 4. 🌐 Full Russian Localization
+* 5,472 localized interface strings verified with an engineering glossary.
+* Instant language toggle ("Ру") located in the sidebar footer.
+* Native `ru-RU` schema integration in `@zcode/shared` prevents server Zod validation errors.
 
-```bash
-ZCODE_DATA_BASE_DIR="$HOME/.zcode-dev-home" pnpm dev:desktop:test
-```
+### 5. 📁 Multi-Workspace & Resilient Sessions
+* `ZCODE_SERVER_WORKSPACE` supports semicolon-separated paths (`path1;path2`).
+* Conversations workspace appears as a project row, preventing lost chats.
+* Session restoration (`restoreOnFreshLoad`): Reopening the PWA returns you directly to your active chat.
+* Windows 8.3 path normalization (`realpathSync.native`) prevents libuv `fs-event` crashes.
 
-### Web Development
+### 6. 🔌 Stable MCP Tools & LAN Polyfills
+* Fixes MCP startup race condition: delayed stdio servers are registered on later turns (`collectLateArrivals`).
+* Linked `mcpSyncService` RPC enables viewing and toggling MCP servers in web settings.
+* Pure JS SHA-256 fallback enables image uploads without HTTPS WebCrypto.
+* Clipboard polyfill for plain HTTP connections.
 
-Use development mode when editing Web or backend source code:
+---
 
-```bash
-pnpm dev:web
+## Quickstart
 
-# Set the backend workspace (macOS / Linux)
-ZCODE_SERVER_WORKSPACE=/path/to/project pnpm dev:web
-```
+### Method 1: Prebuilt Standalone Installer (Recommended)
 
-This starts both the Web development server (default: `http://localhost:5173`) and the backend (default: `http://localhost:3030`). Open the Web development server in your browser. `/ws` and general `/api` requests are proxied to the local backend; `/api/v1/oauth/token` is proxied separately to the configured product service.
-
-After changing Agent source code, run `pnpm --filter @zcode/cli... build` and restart the service. To validate the complete distribution, extract and run it as described under Packaging → ZCode CLI distribution below.
-
-### ZCode CLI distribution
-
-The command-line distribution includes the TUI, Web client, and Agent behind one `zcode` command. With no arguments it starts the TUI; a leading `--web` starts Web mode; all other arguments go to the existing Agent CLI. Both modes run locally without Electron.
-
-```bash
-# Start the terminal UI by default
-zcode
-
-# Start the Web interface
-zcode --web
-
-# Set the project and port without opening a browser automatically
-zcode --web --workspace /path/to/project --port 3030 --no-open
-
-# Show CLI or Web options
-zcode --help
-zcode --web --help
-```
-
-In Web mode, it uses the current directory as the workspace, listens on `127.0.0.1` without token authentication by default, selects an available port, and opens a browser. Use the URL printed in the terminal and press `Ctrl+C` to stop the service. For LAN access, use `--host 0.0.0.0`; listening on a non-local address generates an access token by default. Use the token-bearing URL printed in the terminal. Set a token with `--token`, or disable token authentication with `--no-token`.
-
-When starting the general Web service's HTTP entry directly, configure API/WebSocket authentication with `ZCODE_SERVER_AUTH_TOKEN`. When creating the service programmatically, use the `authToken` option.
-
-See Packaging below for build instructions. `pnpm build:zcode` only creates the distribution; it does not replace an existing `zcode` on `PATH`. If the command still points to an older installation or another checkout, check it with `command -v zcode` on macOS / Linux or `where.exe zcode` on Windows.
-
-### CLI Source Development
-
-Use the source entry when developing the TUI or Agent:
-
-```bash
-pnpm --filter @zcode/cli dev --help
-pnpm --filter @zcode/cli dev
-
-# Build the CLI and its workspace dependencies
-pnpm --filter @zcode/cli... build
-node apps/zcode-cli/packages/cli/dist/zcode.cjs --help
-```
-
-This entry runs the Agent CLI directly and does not handle the distribution's `--web` switch. Use `pnpm dev:web` for Web development, or the extracted `bin/zcode.mjs` shown below to test the unified command.
-
-## Configuration
-
-The root [.env.example](.env.example) provides sample service URLs and build configuration. Copy it to `.env` as needed and place local overrides in `.env.local`. Select the Desktop development environment with `dev:desktop:test` or `dev:desktop:prod`.
-
-| Setting                              | Purpose                                                                                 |
-| ------------------------------------ | --------------------------------------------------------------------------------------- |
-| `ZCODE_DATA_BASE_DIR`                | Base directory for application data, stored under its `.zcode/` subdirectory            |
-| `ZCODE_SERVER_WORKSPACE`             | Workspace path for the Web backend                                                      |
-| `ZCODE_BUILTIN_PROVIDER_CONFIG_FILE` | Path to a local provider configuration file; uses the built-in configuration when unset |
-| `ZCODE_DIST_BASE_URL`                | Download base URL used by the CLI distribution installer                                |
-
-Runtime variables can be set explicitly in the environment of the startup command. See [config/README.md](config/README.md) for the default configuration shipped with the client.
-
-## Packaging
-
-See [third-party/README.md](third-party/README.md) for notice generation, distribution checks, and where the notices are included in each distribution.
-
-### Desktop
+Install with a single command on any machine with Node.js (Linux, macOS, WSL, Git Bash):
 
 ```bash
-pnpm bundle:desktop
-
-# Set the target platform and CPU architecture
-pnpm bundle:desktop -- --os win --arch x64
-
-pnpm bundle:desktop -- --help
+curl -fsSL https://github.com/v9n9yphb67-ui/ZCode/releases/download/v3.14.0-web/install.sh | sh
 ```
 
-The default target is macOS arm64, and the default output directory is `packages/desktop/dist/`. `--os` accepts `mac`, `win`, or `linux`; `--arch` accepts `x64` or `arm64`. Packaging and signing require the tools and configuration for the target platform.
+Start the web server for your local network:
+```bash
+zcode --web --host 0.0.0.0 --port 3040
+```
 
-### ZCode CLI distribution
+Access the server from your phone:
+```
+http://192.168.x.x:3040/?token=YOUR_TOKEN
+```
 
-Run `pnpm build:zcode` to build the CLI/TUI, backend, and Web client, collect the TUI native libraries, workers, and runtime dependencies, then assemble the distribution. Running the distribution still requires Node.js; use the version specified in `mise.toml`.
-
-Before packaging, set the download base URL with `ZCODE_DIST_BASE_URL` in `.env`, `.env.local`, or the process environment, or pass it through `--base-url`. The URL below is a placeholder; replace it with your hosting URL when publishing:
+### Method 2: Run from Source
 
 ```bash
-pnpm build:zcode --base-url https://downloads.example.com/zcode/
+git clone -b iphone-web https://github.com/v9n9yphb67-ui/ZCode.git
+cd ZCode
 
-# When ZCODE_DIST_BASE_URL is already configured
-pnpm build:zcode
+pnpm install
+pnpm --filter @zcode/server build
+pnpm --filter @zcode/web build
 
-# Repackage existing Agent, backend, and Web build outputs
-pnpm build:zcode --skip-build
-
-# Show options for the version, output directory, and more
-pnpm build:zcode --help
+PORT=3040 ZCODE_SERVER_HOST=0.0.0.0 node packages/server/dist/entry-http.js
 ```
 
-The version defaults to the root `package.json` version. Output is written to `dist/zcode/`:
+### Adding to Home Screen (PWA)
 
-- `releases/<version>/zcode-<version>.tar.gz`: runtime package.
-- `releases/<version>/sha256.txt`: checksum file.
-- `latest.json` and `install.sh`: version index and installer.
+1. Open your server URL in **Safari on iPhone** (or Chrome on Android).
+2. Tap **Share** -> **Add to Home Screen**.
+3. Launch ZCode Touch from your home screen as a fullscreen standalone app.
 
-Upload the entire directory to the configured download base URL. The installer downloads the runtime package from that URL, installs it to `~/.zcode/runtime` by default, and creates the `zcode` command in `~/.local/bin`. Override these directories with `ZCODE_DIST_HOME` and `ZCODE_DIST_BIN_DIR`, respectively.
+---
 
-Existing Lite users should switch to the new build command, environment variables, and installer. Installation does not remove old Lite directories or migrate/delete session data.
+## Security & Disclaimer
 
-To test a packaged build locally, extract and run it directly without uploading or installing it:
+* **Trusted Local Network (LAN):** Intended for private home Wi-Fi or private VPNs (WireGuard, Tailscale, OpenVPN).
+* **Do not expose port 3040 directly to the public internet** without HTTPS encryption and a reverse proxy (Caddy, Nginx, Cloudflare Tunnel).
+* Auth tokens are stored in your PWA's `localStorage`. Regularly rotate tokens when changing networks.
 
-```bash
-zcode_version=$(node -p "require('./dist/zcode/latest.json').version")
-mkdir -p dist/zcode/debug
-tar -xzf "dist/zcode/releases/$zcode_version/zcode-$zcode_version.tar.gz" \
-  -C dist/zcode/debug
-# Start the TUI by default
-node dist/zcode/debug/zcode/bin/zcode.mjs
+---
 
-# Start Web mode
-node dist/zcode/debug/zcode/bin/zcode.mjs --web \
-  --workspace "$PWD" --port 3030 --no-open
-```
+## License
 
-Open `http://127.0.0.1:3030` to validate the complete flow, with one backend serving the Web pages and running the Agent. The port must be available; if `pnpm dev:web` is already running, choose another `--port`.
-
-## Repository Structure
-
-| Directory                                            | Responsibility                                                                          |
-| ---------------------------------------------------- | --------------------------------------------------------------------------------------- |
-| `packages/desktop`                                   | Electron Main, Host, Renderer, and desktop packaging                                    |
-| `packages/web`                                       | Web client                                                                              |
-| `packages/server`                                    | HTTP / WebSocket services and remote connections                                        |
-| `packages/zcode-server-cli`                          | Standalone server startup and process management                                        |
-| `packages/ui`                                        | Shared React components, hooks, and Zustand state                                       |
-| `packages/services`                                  | Business services and persistence                                                       |
-| `packages/shared`, `packages/rpc`, `packages/client` | Shared protocols and types, RPC framework, and Agent client SDK                         |
-| `packages/provider`, `packages/provider-node`        | Common provider capabilities and Node implementations                                   |
-| `apps/zcode-cli`                                     | Agent CLI, TUI, runtime, and tools                                                      |
-| `scripts`, `config`, `third-party`                   | Build and maintenance scripts, built-in configuration, and third-party notice materials |
-
-## Project Notice
-
-See [NOTICE.md](NOTICE.md) for feature and promotion scope, maintenance policy, execution and data risks, licensing, and third-party copyright information.
+ZCode is originally created by [zai-org/ZCode](https://github.com/zai-org/ZCode) and licensed under the **Apache License 2.0**.
+All original licenses (`LICENSE`), notices (`NOTICE.md`), and third-party attributions are preserved.
