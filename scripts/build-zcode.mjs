@@ -10,7 +10,7 @@ import {
   patchNodePtyPrebuilds,
   stageTuiRuntime,
 } from "./zcode-distribution/assets.mjs";
-import { installScriptSource } from "./zcode-distribution/installer.mjs";
+import { installPowershellSource, installScriptSource } from "./zcode-distribution/installer.mjs";
 
 const root = resolve(import.meta.dirname, "..");
 const defaultOutDir = resolve(root, "dist", "zcode");
@@ -298,6 +298,8 @@ async function main() {
   const installScript = resolve(outDir, "install.sh");
   await writeFile(installScript, installScriptSource(options.baseUrl));
   await chmod(installScript, 0o755);
+  const installPsScript = resolve(outDir, "install.ps1");
+  await writeFile(installPsScript, installPowershellSource(options.baseUrl));
   await rm(workDir, {
     force: true,
     recursive: true,

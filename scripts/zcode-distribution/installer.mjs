@@ -1,5 +1,74 @@
 const packageDirName = "zcode";
 
+export function installPowershellSource(baseUrl) {
+  // One-liner PowerShell installer: no sh, no curl, no external tar needed.
+  // Uses only built-in .NET + PowerShell 5.1+ cmdlets (works from cmd.exe too:
+  // `powershell -NoProfile -ExecutionPolicy Bypass -c "..."`).
+  // Env overrides mirror install.sh: ZCODE_DIST_BASE_URL / ZCODE_DIST_HOME / ZCODE_DIST_BIN_DIR.
+  return `#Requires -Version 5.1
+$ErrorActionPreference = "Stop"
+
+$baseUrl = if ($env:ZCODE_DIST_BASE_URL) { $env:ZCODE_DIST_BASE_URL } else { "${baseUrl}" }
+$installDir = if ($env:ZCODE_DIST_HOME) { $env:ZCODE_DIST_HOME } else { Join-Path $HOME ".zcode\\runtime" }
+$binDir = if ($env:ZCODE_DIST_BIN_DIR) { $env:ZCODE_DIST_BIN_DIR } else { Join-Path $HOME ".local\\bin" }
+
+$node = Get-Command node -ErrorAction SilentlyContinue
+if (-not $node) { Write-Error "zcode install requires node (https://nodejs.org/)"; exit 1 }
+
+$latest = Invoke-RestMethod -Uri ($baseUrl.TrimEnd("/") + "/latest.json")
+$version = $latest.version
+$tarball = $latest.tarball
+if (-not $version -or -not $tarball) { Write-Error "invalid latest.json from $baseUrl"; exit 1 }
+
+$tmpDir = Join-Path ([System.IO.Path]::GetTempPath()) ("zcode-install-" + [System.Guid]::NewGuid().ToString("N"))
+New-Item -ItemType Directory -Path $tmpDir | Out-Null
+try {
+  $archive = Join-Path $tmpDir $tarball
+  if ($baseUrl -match "/releases/download/") {
+    $url = $baseUrl.TrimEnd("/") + "/" + $tarball
+  } else {
+    $url = $baseUrl.TrimEnd("/") + "/releases/" + $version + "/" + $tarball
+  }
+  Invoke-WebRequest -Uri $url -OutFile $archive -UseBasicParsing
+
+  New-Item -ItemType Directory -Force -Path (Join-Path $installDir "releases"), $binDir | Out-Null
+  $targetNew = Join-Path (Join-Path $installDir "releases") ($version + ".new")
+  $target = Join-Path (Join-Path $installDir "releases") $version
+  if (Test-Path $targetNew) { Remove-Item -Recurse -Force $targetNew }
+  New-Item -ItemType Directory -Path $targetNew | Out-Null
+  # Native bsdtar (ships with Windows 10 1803+) handles drive-letter paths;
+  # Git's GNU tar needs --force-local for the same reason.
+  $tarExe = Join-Path ([System.Environment]::GetFolderPath("System")) "tar.exe"
+  if (Test-Path $tarExe) {
+    & $tarExe -xzf "$archive" -C "$targetNew"
+  } else {
+    & tar --force-local -xzf "$archive" -C "$targetNew"
+  }
+  if (-not $?) { Write-Error "failed to extract $tarball"; exit 1 }
+  if (Test-Path $target) { Remove-Item -Recurse -Force $target }
+  Move-Item -Path (Join-Path $targetNew "${packageDirName}") -Destination $target
+  Remove-Item -Recurse -Force $targetNew
+  $current = Join-Path $installDir "current"
+  # Symlinks need elevation on stock Windows; a plain directory copy works
+  # everywhere (same layout as install.sh's final state).
+  if (Test-Path $current) { Remove-Item -Recurse -Force $current }
+  Copy-Item -Recurse -Force -Path $target -Destination $current
+
+  $shim = Join-Path $binDir "zcode.cmd"
+  $runner = Join-Path $current "bin\\zcode.mjs"
+  $quote = [char]34
+  $shimBody = "@echo off" + [char]13 + [char]10 + "node " + $quote + $runner + $quote + " " + "%" + "*" + [char]13 + [char]10
+  $shimBody | Set-Content -Encoding Ascii $shim
+
+  Write-Output "ZCode $version installed."
+  Write-Output "Run: zcode (TUI) or zcode --web (Web)"
+  if (($env:PATH -split ";") -notcontains $binDir) { Write-Output "Note: $binDir is not in PATH." }
+} finally {
+  Remove-Item -Recurse -Force $tmpDir -ErrorAction SilentlyContinue
+}
+`;
+}
+
 export function installScriptSource(baseUrl) {
   return `#!/usr/bin/env sh
 set -eu
