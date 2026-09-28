@@ -15,6 +15,36 @@
   <img src="https://img.shields.io/badge/i18n-Russian%20(100%25)-green?style=flat-square" alt="Russian 100%" />
 </p>
 
+<p align="center">
+  <a href="#why-this-project-exists">Why this project</a> •
+  <a href="#key-highlights">Key Highlights</a> •
+  <a href="#additional-mobile-refinements">All Refinements</a> •
+  <a href="#quickstart">Quickstart</a> •
+  <a href="#security">Security</a> •
+  <a href="#license">License</a>
+</p>
+
+---
+
+<details open>
+<summary><strong>Quick Navigation / Table of Contents</strong></summary>
+
+* [Why this project exists](#why-this-project-exists)
+* [Key Highlights](#key-highlights)
+  * [1. Self-Hosted Without ZCode Cloud](#1-self-hosted-without-zcode-cloud)
+  * [2. Rock-Solid Scrolling Without Jitter](#2-rock-solid-scrolling-without-jitter-in-long-sessions)
+  * [3. Substantial Speed & Navigation Optimizations](#3-substantial-speed--navigation-optimizations)
+  * [4. Informative Desktop UI on Mobile Screens](#4-informative-desktop-ui-on-mobile-screens)
+  * [5. 100% Russian Localization](#5-100-russian-localization)
+* [Additional Mobile Refinements](#additional-mobile-refinements)
+* [Quickstart](#quickstart)
+  * [One-Line Install](#one-line-install-recommended)
+  * [Add to Home Screen (PWA)](#add-to-home-screen-pwa)
+* [Security](#security)
+* [License](#license)
+
+</details>
+
 ---
 
 ## Why this project exists
@@ -30,26 +60,26 @@ Previously, remote phone usage relied on the official ZCode cloud relay (`zcode.
 
 ## Key Highlights
 
-### 1. 🚀 Self-Hosted Without ZCode Cloud
+### 1. Self-Hosted Without ZCode Cloud
 Direct local connection between your mobile device and your PC over home Wi-Fi (~1 ms latency):
 * Complete independence from external `zcode.z.ai` relay infrastructure.
 * Session restoration speed after backgrounding or OS memory reclaim increased dramatically: no more pairing screens, reconnection is instant over local WebSockets.
 
-### 2. 🧈 Rock-Solid Scrolling Without Jitter in Long Sessions
+### 2. Rock-Solid Scrolling Without Jitter in Long Sessions
 Completely eliminated scroll jumping and stuttering in long threads:
 * Smooth scrolling even in massive conversations packed with tool calls.
 * Hardware-accelerated iOS momentum scrolling (`-webkit-overflow-scrolling: touch`), row style isolation, and expanded virtual buffer.
 
-### 3. ⚡ Substantial Speed & Navigation Optimizations
+### 3. Substantial Speed & Navigation Optimizations
 * Eliminated typing lag and freezes when editing or backspacing text in Safari (debounced drafts, detached heavy re-renders).
 * Fast session switching, menu opening, and project navigation.
 
-### 4. 🖥️ Informative Desktop UI on Mobile Screens
+### 4. Informative Desktop UI on Mobile Screens
 Unlike watered-down mobile web views, full desktop capabilities are preserved:
 * Complete task tree, detailed diffs, terminal outputs, tool statuses, and error inspectors.
 * Heavy side panels open as smooth GPU-accelerated drawer overlays with background dimming instead of crushing the conversation pane.
 
-### 5. 🌐 100% Russian Localization
+### 5. 100% Russian Localization
 * Full interface translation (5,472 strings) with standardized engineering terminology.
 * Instant language toggle ("Ру") in the sidebar footer.
 
