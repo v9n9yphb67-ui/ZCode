@@ -60,9 +60,25 @@ try {
   $shimBody = "@echo off" + [char]13 + [char]10 + "node " + $quote + $runner + $quote + " " + "%" + "*" + [char]13 + [char]10
   $shimBody | Set-Content -Encoding Ascii $shim
 
+  # On Windows, copy shim into WindowsApps so it works immediately in current cmd/shell
+  $windowsApps = Join-Path $env:LOCALAPPDATA "Microsoft\\WindowsApps"
+  if (Test-Path $windowsApps) {
+    Copy-Item -Force -Path $shim -Destination (Join-Path $windowsApps "zcode.cmd")
+  }
+
+  # Also ensure binDir is persistently in user environment PATH
+  try {
+    $userPath = [System.Environment]::GetEnvironmentVariable("PATH", [System.EnvironmentVariableTarget]::User)
+    if (-not $userPath) { $userPath = "" }
+    $parts = $userPath -split ";" | Where-Object { $_ -ne "" }
+    if ($parts -notcontains $binDir) {
+      $newUserPath = ($parts + @($binDir)) -join ";"
+      [System.Environment]::SetEnvironmentVariable("PATH", $newUserPath, [System.EnvironmentVariableTarget]::User)
+    }
+  } catch {}
+
   Write-Output "ZCode $version installed."
   Write-Output "Run: zcode (TUI) or zcode --web (Web)"
-  if (($env:PATH -split ";") -notcontains $binDir) { Write-Output "Note: $binDir is not in PATH." }
 } finally {
   Remove-Item -Recurse -Force $tmpDir -ErrorAction SilentlyContinue
 }
