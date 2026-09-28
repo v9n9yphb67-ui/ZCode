@@ -134,3 +134,7 @@ http://192.168.x.x:3040/?token=YOUR_TOKEN
 
 Originally created by [zai-org/ZCode](https://github.com/zai-org/ZCode) and licensed under **Apache License 2.0**.
 All original licenses (`LICENSE`), notices (`NOTICE.md`), and third-party attributions are preserved.
+
+---
+
+> **P.S.** Sorry for the AI-generated text, couldn't be bothered to format all of this manually, thanks everyone.
