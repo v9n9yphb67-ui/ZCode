@@ -118,6 +118,12 @@ Access the server from your phone:
 http://192.168.x.x:3040/?token=YOUR_TOKEN
 ```
 
+> 💡 **If your phone cannot reach the local LAN address (`ERR_EMPTY_RESPONSE` or connection timeout):**
+> 1. **VPN on your phone:** Disable your mobile VPN or enable *“Bypass LAN / Local Network Sharing”* in your VPN app settings. Otherwise, the VPN routes local `192.168.x.x` requests through its remote proxy.
+> 2. **Windows Firewall:** Ensure your Wi-Fi profile is set to "Private Network", or allow port 3040 via an Administrator cmd:  
+>    `netsh advfirewall firewall add rule name="ZCode" dir=in action=allow protocol=TCP localport=3040`
+> 3. **Or simply use `--tunnel`:** Run `zcode --web --tunnel` to bypass LAN firewall and VPN routing entirely via a secure HTTPS Cloudflare Tunnel.
+
 ### Add to Home Screen (PWA)
 
 1. Open your server URL in **Safari on iOS** (or Chrome on Android).
