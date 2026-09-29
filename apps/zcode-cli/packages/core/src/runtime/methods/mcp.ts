@@ -4,6 +4,7 @@ import {
   ZCODE_CUA_PLUGIN_AUTHORITY_ENV_KEY,
   ZCODE_PLUGIN_ID_ENV_KEY,
 } from "@zcode/shared";
+import { toMcpToolName } from "../../mcp/name.js";
 import { registerMcpTools, traceContextToLogContext } from "../deps.js";
 import type { McpConnectionSnapshot, McpServerConfig, TraceContext } from "../deps.js";
 import type { AgentRuntimeInternal } from "../internal.js";
@@ -141,17 +142,18 @@ export async function initializeMcp(
   const hasPendingConnections = (snapshot: McpConnectionSnapshot): boolean =>
     Object.values(snapshot.statuses).some((status) => status?.status === "connecting");
 
-  // Поздний добор: серверы могли подключиться уже после стартового snapshot
-  // (старт поймал connecting→tools 0). status()/listTools() читают текущие records
-  // адаптера — без нового connect: повторно коннектить живое нельзя (replace-семантика
-  // connectConfiguredServers отключила бы чужое), только подобрать готовое.
+  // Поздний добор: серверы могли подключиться уже после стартового snapshot.
+  // Читаем актуальный список инструментов из mcpPort.listTools(); если появились инструменты,
+  // которых ещё нет в registry — дорегистрируем их и инвалидируем кэш тулов модели.
   const collectLateArrivals = async (): Promise<number> => {
-    const statuses = await mcpPort.status().catch(() => null);
-    if (!statuses) return 0;
-    const pending = Object.values(statuses).some((status) => status?.status === "connecting");
-    if (pending) return 0;
     const tools = await mcpPort.listTools().catch(() => []);
     if (tools.length === 0) return 0;
+    const hasUnregistered = tools.some((t) => {
+      const toolName = toMcpToolName(t);
+      return !this.registry.has(toolName);
+    });
+    if (!hasUnregistered) return 0;
+
     const registered = registerMcpTools(this.registry, mcpPort, tools, {
       allowedTools: this.config.toolAllowlist,
       disallowedTools: this.config.toolDisallowlist,
@@ -181,7 +183,7 @@ export async function initializeMcp(
 
   try {
     let snapshot = await startup;
-    if (snapshot.tools.length === 0 && hasPendingConnections(snapshot)) {
+    if (hasPendingConnections(snapshot)) {
       const pendingRetry = mcpPort
         .connectConfiguredServers(this.config.mcp?.servers ?? {}, {
           // OAuth-ожидание здесь нельзя наследовать от сессии: браузерная авторизация
@@ -206,7 +208,9 @@ export async function initializeMcp(
         snapshot = retried;
       }
     }
-    const registered = registerMcpTools(this.registry, mcpPort, snapshot.tools, {
+    const currentTools = await mcpPort.listTools().catch(() => []);
+    const toolsToRegister = currentTools.length > 0 ? currentTools : snapshot.tools;
+    const registered = registerMcpTools(this.registry, mcpPort, toolsToRegister, {
       allowedTools: this.config.toolAllowlist,
       disallowedTools: this.config.toolDisallowlist,
       officialCuaServerNames: computeOfficialCuaServerNames(

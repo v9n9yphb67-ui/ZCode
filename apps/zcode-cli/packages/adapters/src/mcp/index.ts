@@ -971,7 +971,7 @@ class NodeMcpAdapter implements McpPort {
     const waiters: Promise<McpServerStatus>[] = [connecting];
 
     const timeoutMs = options.oauthAuthorizationTimeoutMs;
-    if (timeoutMs !== undefined) {
+    if (timeoutMs !== undefined && record.config.type !== "stdio") {
       waiters.push(
         new Promise((resolvePromise) => {
           timeoutId = setTimeout(() => resolvePromise(currentStatus()), timeoutMs);
